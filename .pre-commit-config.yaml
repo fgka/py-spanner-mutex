@@ -103,15 +103,3 @@ repos:
              "--args=--skip-check CKV_TF_1", # "Ensure Terraform module sources use a commit hash"
              ]
       files: ^terraform/
-#- repo: https://github.com/bridgecrewio/checkov.git
-#  rev: 2.4.39  # newest as of 2023-09-18
-#  hooks:
-#    - id: checkov_diff
-#      entry: checkov --framework terraform -f
-#      args: ["-quiet",
-#             "--skip-check CKV_GCP_49", # "Ensure roles do not impersonate or manage Service Accounts used at project level"
-#             "--skip-check CKV_GCP_117", # "Ensure basic roles are not used at project level."
-#             "--skip-check CKV_GCP_84", # "Ensure Artifact Registry Repositories are encrypted with Customer Supplied Encryption Keys (CSEK)"
-#             "--skip-check CKV_TF_1", # "Ensure Terraform module sources use a commit hash"
-#             ]
-#      files: ^terraform/
