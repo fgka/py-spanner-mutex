@@ -1,6 +1,6 @@
 # Using Terraform to deploy all
 
-It is assumed you ran the [bootstrap](../bootstrap/README.md) instructions first.
+It is assumed you ran the [bootstrap](../bootstrap/README.md) and [spanner_instance](../spanner_instance/README.md) instructions first.
 
 ## Definitions (only once)
 
@@ -9,49 +9,6 @@ Manually set:
 ```bash
 export PROJECT_ID=$(gcloud config get-value core/project)
 export REGION="europe-west3"
-```
-
-Please set them properly:
-
-```bash
-export NOTIFICATION_EMAIL="${USER}@$(uname -n)"
-export GITHUB_OWNER="${USER}"
-
-export GITHUB_REPO=$(basename `git rev-parse --show-toplevel`)
-export GIT_BRANCH=$(git rev-parse --abbrev-ref HEAD)
-```
-
-Packages and versions:
-
-```bash
-YAAS_PIP_PACKAGES="["
-unset PKGS
-PKGS=("core" "service")
-for P in ${PKGS[@]}; do
-  pushd ../../code/${P}
-  poetry version --no-ansi | read PKG_NAME PKG_VERSION
-  YAAS_PIP_PACKAGES+="\"${PKG_NAME}>=${PKG_VERSION}\","
-  popd
-done
-YAAS_PIP_PACKAGES=${YAAS_PIP_PACKAGES%%,}
-YAAS_PIP_PACKAGES+="]"
-export YAAS_PIP_PACKAGES=${YAAS_PIP_PACKAGES}
-```
-
-Calendar ID:
-
-```bash
-export CALENDAR_ID="YOUR_GOOGLE_CALENDAR_ID"
-```
-
-Check:
-
-```bash
-echo "Main project: ${PROJECT_ID}@${REGION}"
-echo "Email: ${NOTIFICATION_EMAIL}"
-echo "Github: ${GITHUB_OWNER}@${GITHUB_REPO}:${GIT_BRANCH}"
-echo "YAAS python packages: ${YAAS_PIP_PACKAGES}"
-echo "Google Calendar ID: ${CALENDAR_ID}"
 ```
 
 ## Create ``terraform.tfvars`` (only once)
@@ -74,14 +31,6 @@ cp -f terraform.tfvars.tmpl terraform.tfvars
 ${SED} -i \
   -e "s/@@PROJECT_ID@@/${PROJECT_ID}/g" \
   -e "s/@@REGION@@/${REGION}/g" \
-  -e "s/@@TF_STATE_BUCKET@@/${TF_STATE_BUCKET}/g" \
-  -e "s/@@NOTIFICATION_EMAIL@@/${NOTIFICATION_EMAIL}/g" \
-  -e "s/@@GITHUB_OWNER@@/${GITHUB_OWNER}/g" \
-  -e "s/@@GITHUB_REPO@@/${GITHUB_REPO}/g" \
-  -e "s/@@GIT_BRANCH@@/${GIT_BRANCH}/g" \
-  -e "s/@@CALENDAR_ID@@/${CALENDAR_ID}/g" \
-  -e "s/@@GMAIL_USERNAME@@/${GMAIL_USERNAME}/g" \
-  -e "s/@@YAAS_PIP_PACKAGE@@/${YAAS_PIP_PACKAGES}/g" \
   terraform.tfvars
 ```
 
@@ -112,49 +61,6 @@ terraform plan \
 terraform apply ${TMP} && rm -f ${TMP}
 ```
 
-## Trigger Build
-
-Get trigger name:
-
-```bash
-OUT_JSON=$(mktemp)
-terraform output -json > ${OUT_JSON}
-echo "Terraform output in ${OUT_JSON}"
-
-CICD_TF_TRIGGER_NAME=$(jq -c -r ".cicd_build.value.tf_build_trigger.name" ${OUT_JSON})
-echo "CI/CD Terraform trigger name: '${CICD_TF_TRIGGER_NAME}'"
-
-rm -f ${OUT_JSON}
-```
-
-Trigger build:
-
-```bash
-TMP=$(mktemp)
-gcloud builds triggers run ${CICD_TF_TRIGGER_NAME} \
-  --branch=${GIT_BRANCH} \
-  --region=${REGION} \
-  --format=json \
-  > ${TMP}
-
-BUILD_ID=$(jq -r -c ".metadata.build.id" ${TMP})
-echo "Build ID: '${BUILD_ID}'"
-
-rm -f ${TMP}
-```
-
-Stream logs:
-
-```bash
-gcloud builds log ${BUILD_ID} --region=${REGION} --stream
-```
-
-Status:
-
-```bash
-gcloud builds describe ${BUILD_ID} --region=${REGION}
-```
-
 <!-- BEGINNING OF PRE-COMMIT-TERRAFORM DOCS HOOK -->
 ## Requirements
 
@@ -167,7 +73,9 @@ gcloud builds describe ${BUILD_ID} --region=${REGION}
 
 ## Providers
 
-No providers.
+| Name | Version |
+|------|---------|
+| <a name="provider_google"></a> [google](#provider\_google) | 4.82.0 |
 
 ## Modules
 
@@ -175,14 +83,23 @@ No modules.
 
 ## Resources
 
-No resources.
+| Name | Type |
+|------|------|
+| [google_spanner_database.database](https://registry.terraform.io/providers/hashicorp/google/latest/docs/resources/spanner_database) | resource |
+| [google_spanner_instance.instance](https://registry.terraform.io/providers/hashicorp/google/latest/docs/data-sources/spanner_instance) | data source |
 
 ## Inputs
 
 | Name | Description | Type | Default | Required |
 |------|-------------|------|---------|:--------:|
+| <a name="input_max_mutex_table_row_ttl_in_days"></a> [max\_mutex\_table\_row\_ttl\_in\_days](#input\_max\_mutex\_table\_row\_ttl\_in\_days) | Once a mutex row in created, for how long to keep it before auto-removing it, in days | `number` | `3` | no |
+| <a name="input_mutex_db_ddl_tmpl"></a> [mutex\_db\_ddl\_tmpl](#input\_mutex\_db\_ddl\_tmpl) | Spanner mutex DB DDL script template | `string` | `"templates/mutex_db_ddl.sql.tmpl"` | no |
+| <a name="input_mutex_db_name"></a> [mutex\_db\_name](#input\_mutex\_db\_name) | Spanner database name for distributed mutex. | `string` | `"distributed_mutex"` | no |
+| <a name="input_mutex_db_retention_in_hours"></a> [mutex\_db\_retention\_in\_hours](#input\_mutex\_db\_retention\_in\_hours) | For how long (in hours) to keep a Mutex database version | `number` | `72` | no |
+| <a name="input_mutex_table_name"></a> [mutex\_table\_name](#input\_mutex\_table\_name) | Spanner table name distributed mutex. | `string` | `"distributed_mutex"` | no |
 | <a name="input_project_id"></a> [project\_id](#input\_project\_id) | Project ID where to deploy and source of data. | `string` | n/a | yes |
 | <a name="input_region"></a> [region](#input\_region) | Default region where to create resources. | `string` | `"us-central1"` | no |
+| <a name="input_spanner_instance_name"></a> [spanner\_instance\_name](#input\_spanner\_instance\_name) | Spanner instance for distributed mutex. | `string` | n/a | yes |
 
 ## Outputs
 
