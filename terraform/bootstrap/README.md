@@ -110,21 +110,6 @@ jq -c -r ".backend_tf.value[]" ${OUT_JSON} \
 rm -f ${OUT_JSON}
 ```
 
-## Copy generated `backend.tf.tmpl` over CI/CD template directory (only once)
-
-```bash
-TARGET="../cicd/2_cicd_build/templates/backend.tf.tmpl"
-OUT_JSON=$(mktemp)
-terraform output -json > ${OUT_JSON}
-echo "Terraform output in ${OUT_JSON}"
-
-SOURCE=$(jq -c -r ".build_pipeline_backend_tf_tmpl.value" ${OUT_JSON})
-echo "Copying: '${SOURCE}' to '${TARGET}'"
-rm -f ${OUT_JSON}
-```
-
-**NOTE**: Please commit the new template, if necessary, in the `cicd` module.
-
 <!-- BEGINNING OF PRE-COMMIT-TERRAFORM DOCS HOOK -->
 ## Requirements
 
@@ -152,7 +137,6 @@ rm -f ${OUT_JSON}
 
 | Name | Type |
 |------|------|
-| [google_project_iam_member.cloud_build](https://registry.terraform.io/providers/hashicorp/google/latest/docs/resources/project_iam_member) | resource |
 | [google_project_service.project](https://registry.terraform.io/providers/hashicorp/google/latest/docs/resources/project_service) | resource |
 | [local_file.backend_tf](https://registry.terraform.io/providers/hashicorp/local/latest/docs/resources/file) | resource |
 | [google_project.project](https://registry.terraform.io/providers/hashicorp/google/latest/docs/data-sources/project) | data source |
@@ -162,7 +146,7 @@ rm -f ${OUT_JSON}
 | Name | Description | Type | Default | Required |
 |------|-------------|------|---------|:--------:|
 | <a name="input_backend_tf"></a> [backend\_tf](#input\_backend\_tf) | Where to store backend.tf. Only change if you know what you are doing. | `string` | `"backend.tf"` | no |
-| <a name="input_backend_tf_modules"></a> [backend\_tf\_modules](#input\_backend\_tf\_modules) | Modules with their own Terraform state. Only change if you know what you are doing. | `list(string)` | <pre>[<br>  "spanner_mutex"<br>]</pre> | no |
+| <a name="input_backend_tf_modules"></a> [backend\_tf\_modules](#input\_backend\_tf\_modules) | Modules with their own Terraform state. Only change if you know what you are doing. | `list(string)` | <pre>[<br>  "spanner_instance",<br>  "spanner_mutex"<br>]</pre> | no |
 | <a name="input_backend_tf_tmpl"></a> [backend\_tf\_tmpl](#input\_backend\_tf\_tmpl) | Template for backend.tf. Only change if you know what you are doing. | `string` | `"templates/backend.tf.tmpl"` | no |
 | <a name="input_minimum_apis"></a> [minimum\_apis](#input\_minimum\_apis) | Minimum APIs to activate in the project. Only change if you know what you are doing. | `list(string)` | <pre>[<br>  "cloudapis.googleapis.com",<br>  "iam.googleapis.com",<br>  "iamcredentials.googleapis.com",<br>  "logging.googleapis.com",<br>  "monitoring.googleapis.com",<br>  "run.googleapis.com",<br>  "servicemanagement.googleapis.com",<br>  "serviceusage.googleapis.com",<br>  "storage.googleapis.com"<br>]</pre> | no |
 | <a name="input_project_id"></a> [project\_id](#input\_project\_id) | Project ID where to deploy and source of data. | `string` | n/a | yes |

@@ -51,6 +51,7 @@ variable "backend_tf_modules" {
   description = "Modules with their own Terraform state. Only change if you know what you are doing."
   type        = list(string)
   default = [
+    "spanner_instance",
     "spanner_mutex",
   ]
 }
