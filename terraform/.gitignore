@@ -1,0 +1,8 @@
+init.tf
+**/.terraform*
+**/backend.tf
+**/dist
+**/terraform.tfstate*
+**/terraform.tfvars
+**/output
+**/*.tmpl.local

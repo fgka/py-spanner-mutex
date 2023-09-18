@@ -1,0 +1,117 @@
+# See https://pre-commit.com for more information
+# See https://pre-commit.com/hooks.html for more hooks
+repos:
+- repo: https://github.com/pre-commit/pre-commit-hooks
+  rev: v4.4.0  # newest as of 2023-09-18
+  hooks:
+  - id: check-added-large-files
+  - id: check-ast
+  - id: check-case-conflict
+  - id: check-executables-have-shebangs
+  - id: check-merge-conflict
+  - id: check-shebang-scripts-are-executable
+  - id: check-toml
+  - id: check-xml
+  - id: check-yaml
+  - id: destroyed-symlinks
+  - id: detect-private-key
+  - id: end-of-file-fixer
+  - id: mixed-line-ending
+  - id: pretty-format-json
+    args: ["--autofix"]
+  - id: requirements-txt-fixer
+  - id: trailing-whitespace
+- repo: local
+  hooks:
+  - id: black
+    name: black
+    types: [file, python]
+    language: system
+    entry: bash -c "pushd code && poetry run black src tests; popd"
+    pass_filenames: false
+    files: ^code/
+- repo: local
+  hooks:
+  - id: isort
+    name: isort
+    types: [python]
+    language: system
+    entry: bash -c "pushd code && poetry run isort src tests; popd"
+    pass_filenames: false
+    files: ^code/
+- repo: https://github.com/antonbabenko/pre-commit-terraform
+  rev: v1.83.2  # newest as of 2023-09-18
+  hooks:
+    - id: terraform_fmt
+      files: ^terraform
+    - id: terraform_docs
+      files: ^terraform/
+- repo: local
+  hooks:
+  - id: docformatter
+    name: docformatter
+    types: [python]
+    language: system
+    entry: bash -c "pushd code && poetry run docformatter src tests ; popd"
+    pass_filenames: false
+- repo: local
+  hooks:
+  - id: pytest
+    name:  pytest
+    language: system
+    types: [python]
+    entry: bash -c "pushd code && poetry run pytest --no-cov; popd"
+    pass_filenames: false
+    files: ^code/
+- repo: local
+  hooks:
+  - id: vulture
+    name:  vulture
+    language: system
+    types: [python]
+    entry: bash -c "pushd code && poetry run vulture; popd"
+    pass_filenames: false
+    files: ^code/
+- repo: local
+  hooks:
+  - id: pylint
+    name: pylint
+    language: system
+    types: [python]
+    entry: bash -c "pushd code && poetry run pylint ${@}; popd"
+    pass_filenames: true
+    files: ^code/
+- repo: https://github.com/hadolint/hadolint
+  rev: v2.12.0  # newest as of 2023-09-18
+  hooks:
+  - id: hadolint
+- repo: https://github.com/antonbabenko/pre-commit-terraform
+  rev: v1.83.2  # newest as of 2023-09-18
+  hooks:
+    - id: terraform_tflint
+      args: ["--args=--config __GIT_WORKING_DIR__/terraform/.tflint.hcl"]
+      files: ^terraform/
+    - id: terraform_tfsec
+      files: ^terraform/
+    - id: terraform_validate
+      files: ^terraform/
+    - id: terraform_checkov
+      args: ["--args=--quiet",
+             "--args=--skip-check CKV_GCP_49", # "Ensure roles do not impersonate or manage Service Accounts used at project level"
+             "--args=--skip-check CKV_GCP_117", # "Ensure basic roles are not used at project level."
+             "--args=--skip-check CKV_GCP_84", # "Ensure Artifact Registry Repositories are encrypted with Customer Supplied Encryption Keys (CSEK)"
+             "--args=--skip-check CKV_TF_1", # "Ensure Terraform module sources use a commit hash"
+             ]
+      files: ^terraform/
+#- repo: https://github.com/bridgecrewio/checkov.git
+#  rev: 2.4.39  # newest as of 2023-09-18
+#  hooks:
+#    - id: checkov_diff
+#      entry: checkov --framework terraform -f
+#      args: ["-quiet",
+#             "--skip-check CKV_GCP_49", # "Ensure roles do not impersonate or manage Service Accounts used at project level"
+#             "--skip-check CKV_GCP_117", # "Ensure basic roles are not used at project level."
+#             "--skip-check CKV_GCP_84", # "Ensure Artifact Registry Repositories are encrypted with Customer Supplied Encryption Keys (CSEK)"
+#             "--skip-check CKV_TF_1", # "Ensure Terraform module sources use a commit hash"
+#             ]
+#      files: ^terraform/
