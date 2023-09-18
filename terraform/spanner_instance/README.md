@@ -61,6 +61,18 @@ terraform plan \
 terraform apply ${TMP} && rm -f ${TMP}
 ```
 
+## Export Cloud Spanner instance name
+
+```bash
+OUT_JSON=$(mktemp)
+terraform output -json > ${OUT_JSON}
+echo "Terraform output in ${OUT_JSON}"
+
+export SPANNER_INST_NAME=$(jq -c -r ".spanner_instance.value.name" ${OUT_JSON})
+echo "Terraform Spanner Instance name: '${SPANNER_INST_NAME}'"
+rm -f ${OUT_JSON}
+```
+
 <!-- BEGINNING OF PRE-COMMIT-TERRAFORM DOCS HOOK -->
 ## Requirements
 
