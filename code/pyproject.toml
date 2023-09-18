@@ -125,6 +125,7 @@ verbose = false
 [tool.poetry.dependencies]
 # https://devguide.python.org/versions/#branchstatus
 python = "^3.11.0"  # End-of-life: 2027-10 (checked on 2023-09-18)
+attrs = "^23.1.0"
 click = "^8.1.7"
 
 [tool.poetry.group.dev.dependencies]
