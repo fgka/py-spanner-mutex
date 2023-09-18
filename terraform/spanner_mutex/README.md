@@ -11,6 +11,12 @@ export PROJECT_ID=$(gcloud config get-value core/project)
 export REGION="europe-west3"
 ```
 
+Either get the spanner instance from [spanner_instance](../spanner_instance/README.md) or set it manually:
+
+```bash
+export SPANNER_INST_NAME="YOUR_SPANNER_INSTANCE_NAME"
+```
+
 ## Create ``terraform.tfvars`` (only once)
 
 Because macOS does not adopt gnu-sed:
@@ -31,6 +37,7 @@ cp -f terraform.tfvars.tmpl terraform.tfvars
 ${SED} -i \
   -e "s/@@PROJECT_ID@@/${PROJECT_ID}/g" \
   -e "s/@@REGION@@/${REGION}/g" \
+  -e "s/@@SPANNER_INST_NAME@@/${SPANNER_INST_NAME}/g" \
   terraform.tfvars
 ```
 
@@ -103,5 +110,7 @@ No modules.
 
 ## Outputs
 
-No outputs.
+| Name | Description |
+|------|-------------|
+| <a name="output_spanner_database"></a> [spanner\_database](#output\_spanner\_database) | n/a |
 <!-- END OF PRE-COMMIT-TERRAFORM DOCS HOOK -->
