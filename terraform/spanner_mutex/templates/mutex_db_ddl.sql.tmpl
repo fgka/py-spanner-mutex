@@ -2,8 +2,8 @@ CREATE TABLE IF NOT EXISTS ${MUTEX_TABLE_NAME} (
     uuid                       STRING(1024) NOT NULL,
     display_name               STRING(1024) NOT NULL,
     status                     STRING(256),
-    update_ts                  TIMESTAMP OPTIONS ( allow_commit_timestamp = true ),
-    update_client_id           STRING(1024),
+    update_time_utc            TIMESTAMP OPTIONS ( allow_commit_timestamp = true ),
+    update_client_uuid         STRING(1024),
     update_client_display_name STRING(1024),
 ) PRIMARY KEY(uuid),
 ROW DELETION POLICY ( OLDER_THAN (update_ts, INTERVAL ${MUTEX_ROW_TTL_IN_DAYS} DAY ) )
