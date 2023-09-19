@@ -126,8 +126,10 @@ verbose = false
 # https://devguide.python.org/versions/#branchstatus
 python = "^3.11.0"  # End-of-life: 2027-10 (checked on 2023-09-18)
 attrs = "^23.1.0"
+cachetools = "^5.3.1"
 click = "^8.1.7"
 google-cloud-spanner = "^3.40.1"
+pytz = "^2023.3.post1"
 
 [tool.poetry.group.dev.dependencies]
 black = "^23.9.1"

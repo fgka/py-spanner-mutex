@@ -5,12 +5,12 @@ Wrapper around Cloud Spanner Python API, which is a thin layer on top of `Cloud 
 .. _Cloud Spanner API: https://cloud.google.com/python/docs/reference/spanner/latest
 """
 import os
-from typing import Dict, Optional, Tuple
+from typing import Any, Dict, Generator, List, Optional, Set, Tuple
 
 from google import auth
 from google.auth import credentials
 from google.cloud import spanner
-from google.cloud.spanner_v1 import database, instance
+from google.cloud.spanner_v1 import database, instance, streamed, table, transaction
 
 from py_spanner_mutex.common import logger, preprocess
 
@@ -33,11 +33,37 @@ class SpannerError(Exception):
     """
 
 
+def spanner_table(*, db: database.Database, table_id: str, must_exist: Optional[bool] = True) -> table.Table:
+    """
+    Wrapper around API with error checking.
+    Args:
+        db:
+        table_id:
+        must_exist:
+
+    Returns:
+
+    """
+    _LOGGER.debug("Getting '%s' using '%s'", table.Table.__name__, locals())
+    # input validation
+    preprocess.validate_type(db, "db", database.Database)
+    preprocess.string(table_id, "table_id")
+    preprocess.validate_type(must_exist, "must_exist", bool)
+    # logic
+    try:
+        result = db.table(table_id)
+    except Exception as err:
+        raise SpannerError(f"Could not retrieve table from database '{db.name}'") from err
+    if must_exist and not result.exists():
+        raise SpannerError(f"Table '{table_id}' must exist in database '{db.name}' but does not")
+    return result
+
+
 def spanner_db(
     *,
     instance_id: str,
     database_id: str,
-    project: Optional[str] = None,
+    project_id: Optional[str] = None,
     creds: Optional[credentials.Credentials] = None,
 ) -> database.Database:
     """
@@ -46,7 +72,7 @@ def spanner_db(
     Args:
         instance_id:
         database_id:
-        project:
+        project_id:
         creds:
 
     Returns:
@@ -54,12 +80,14 @@ def spanner_db(
     Raises:
         SpannerError: On all errors.
     """
+    _LOGGER.debug("Getting '%s' using '%s'", database.Database.__name__, locals())
     # validate input
     preprocess.string(database_id, "database_id")
     # logic
-    spanner_instance = _spanner_instance(instance_id=instance_id, project=project, creds=creds)
+    spanner_instance = _spanner_instance(instance_id=instance_id, project_id=project_id, creds=creds)
     try:
         result = spanner_instance.database(database_id=database_id)
+        result.reload()
     except Exception as err:
         raise SpannerError(f"Could not get database for ID '{database_id} ins instance ID '{instance_id}'") from err
     if not result.exists():
@@ -72,13 +100,13 @@ def spanner_db(
 def _spanner_instance(
     *,
     instance_id: str,
-    project: Optional[str] = None,
+    project_id: Optional[str] = None,
     creds: Optional[credentials.Credentials] = None,
 ) -> instance.Instance:
     # validate input
     preprocess.string(instance_id, "instance_id")
     # logic
-    client = _client(project=project, creds=creds)
+    client = _client(project_id=project_id, creds=creds)
     try:
         result = client.instance(instance_id=instance_id)
     except Exception as err:
@@ -94,20 +122,20 @@ def _spanner_instance(
     return result
 
 
-def _client(*, project: Optional[str] = None, creds: Optional[credentials.Credentials] = None) -> spanner.Client:
+def _client(*, project_id: Optional[str] = None, creds: Optional[credentials.Credentials] = None) -> spanner.Client:
     # validate input
-    preprocess.string(project, "project", is_none_valid=True)
+    preprocess.string(project_id, "project", is_none_valid=True)
     preprocess.validate_type(creds, "creds", credentials.Credentials, is_none_valid=True)
     # logic
     use_emulator = _use_emulator_client()
     try:
         if use_emulator:
-            result = _emulator_client(project=project, creds=creds)
+            result = _emulator_client(project=project_id, creds=creds)
         else:
-            result = _spanner_client(project=project, creds=creds)
+            result = _spanner_client(project_id=project_id, creds=creds)
     except Exception as err:
         raise SpannerError(
-            f"Could not create client using project '{project}', credentials '{creds}', and use emulator '{use_emulator}'"
+            f"Could not create client using project '{project_id}', credentials '{creds}', and use emulator '{use_emulator}'"
         ) from err
     return result
 
@@ -117,21 +145,21 @@ def _use_emulator_client() -> bool:
 
 
 def _spanner_client(
-    *, project: Optional[str] = None, creds: Optional[credentials.Credentials] = None
+    *, project_id: Optional[str] = None, creds: Optional[credentials.Credentials] = None
 ) -> spanner.Client:
     default_creds, default_project = None, None
     _LOGGER.debug(
-        "Creating client '%s' with project '%s' and credentials '%s'", spanner.Client.__name__, project, creds
+        "Creating client '%s' with project '%s' and credentials '%s'", spanner.Client.__name__, project_id, creds
     )
-    if project is None or creds is None:
+    if project_id is None or creds is None:
         default_creds, default_project = _default_credentials_project()
     if creds is None:
         _LOGGER.debug("Using default credentials '%s' for '%s'", default_creds, spanner.Client.__name__)
         creds = default_creds
-    if project is None:
+    if project_id is None:
         _LOGGER.debug("Using default project '%s' for '%s'", default_project, spanner.Client.__name__)
-        project = default_project
-    return spanner.Client(project=project, credentials=creds)
+        project_id = default_project
+    return spanner.Client(project=project_id, credentials=creds)
 
 
 def _default_credentials_project() -> Tuple[credentials.Credentials, str]:
@@ -149,3 +177,73 @@ def _emulator_client(*args, **kwargs) -> spanner.Client:
         client_options=_SPANNER_EMULATOR_CLIENT_OPTIONS,
         credentials=credentials.AnonymousCredentials(),
     )
+
+
+def read_table_rows(*, db: database.Database, table_id: str, keys: Set[Any]) -> Generator[Dict[str, Any], None, None]:
+    """
+    Correct way to use this function::
+        db = spanner_db(...)
+        table_id = "my_table_id"
+        keys = {"my_key_a", "my_key_b"}
+        for row in read_table_rows(db=db, table_id=table_id, keys=keys):
+            print(row)
+
+    Args:
+        db:
+        table_id:
+        keys:
+
+    Returns:
+
+    """
+    _LOGGER.debug("Reading table using '%s'", locals())
+    # input validation
+    preprocess.validate_type(db, "db", database.Database)
+    preprocess.string(table_id, "table_id")
+    preprocess.validate_type(keys, "keys", set)
+    # logic
+    tbl = spanner_table(db=db, table_id=table_id)
+    columns = [entry.name for entry in tbl.schema]
+    keyset = spanner.KeySet(keys=keys)
+    with db.snapshot() as snapshot:
+        results: streamed.StreamedResultSet = snapshot.read(table=table_id, keyset=keyset, columns=columns)
+        for row in results:
+            yield _create_row_from_columns_and_values(columns=columns, values=row)
+
+
+def _create_row_from_columns_and_values(*, columns: List[str], values: List[Any]) -> Dict[str, Any]:
+    result = {}
+    for col, val in zip(columns, values):
+        result[col] = val
+    return result
+
+
+def upsert_table_row(*, db: database.Database, table_id: str, row: Dict[str, Any]) -> None:
+    """
+    Will insert or update the ``row``.
+    Args:
+        db:
+        table_id:
+        row:
+
+    Returns:
+
+    """
+    _LOGGER.debug("Upserting into table using '%s'", locals())
+    # input validation
+    preprocess.validate_type(db, "db", database.Database)
+    preprocess.string(table_id, "table_id")
+    preprocess.validate_type(row, "row", dict)
+    # logic
+    db.run_in_transaction(_upsert_row, (table_id, row))
+    _LOGGER.debug("Upserting ended successfully for table '%s' in database '%s' and row '%s'", db.name, table_id, row)
+
+
+def _upsert_row(txn: transaction.Transaction, table_id: str, row: Dict[str, Any]) -> None:
+    _LOGGER.debug("Upserting with: %s", locals())
+    columns = []
+    values = []
+    for key, val in row.items():
+        columns.append(key)
+        values.append(val)
+    txn.insert_or_update(table=table_id, columns=columns, values=values)
