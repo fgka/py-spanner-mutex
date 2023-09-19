@@ -39,7 +39,8 @@ class SpannerMutex:  # abc.ABC):
 
     **WARNING**: This **can** be thread-safe iff ``client_uuid`` is unique for each thread.
     If you do **not** provide the ``client_uuid`` it will create on per instance, making it thread-safe.
-    In this case we do recommend that you set ``client_display_name`` in a meaningful way that lets you identify the corresponding process/thread.
+    In this case we do recommend that you set ``client_display_name`` in a meaningful way that lets you identify the
+    corresponding process/thread.
     """
 
     def __init__(
@@ -149,17 +150,20 @@ class SpannerMutex:  # abc.ABC):
         """
         It should check if the mutex is still needed or not. Usually you have two categories of mutexes:
         * Mutex is always needed, in this case this method is the same as checking if the work has been done.
-        * Mutex need depends on an external factor and sometimes there are no tasks/jobs. In this case you should check if there are tasks/jobs to be executed in the critical section.
+        * Mutex need depends on an external factor and sometimes there are no tasks/jobs.
+            In this case you should check if there are tasks/jobs to be executed in the critical section.
         """
         return True
 
     # @abc.abstractmethod
     def execute_critical_section(self, max_end_time: datetime) -> None:
         """
-        This method will be called if there is a task/job to be executed in the critical section **AND** this client/thread has the lock on the mutex.
+        This method will be called if there is a task/job to be executed in the critical section.
+        **AND** this client/thread has the lock on the mutex.
 
         Args:
-            max_end_time: this is your time budget, once this time is reached you should expect that another client/thread will try to execute the critical section, assuming you couldn't.
+            max_end_time: this is your time budget, once this time is reached you should expect that
+                another client/thread will try to execute the critical section, assuming you couldn't.
         """
         print("Tada")
 
@@ -258,7 +262,9 @@ class SpannerMutex:  # abc.ABC):
         state = self._create_state(status)
         if not self._set_mutex(state):
             raise SpannerMutexError(
-                f"Could not release mutex using state '{state}' at '{self}'. Error executing critical section: '{error}'. See logs for errors releasing the mutex."
+                f"Could not release mutex using state '{state}' at '{self}'. "
+                f"Error executing critical section: '{error}'. "
+                "See logs for errors releasing the mutex."
             )
         if error:
             raise SpannerMutexError(f"Released mutex but execution of critical section failed at '{self}'") from error
