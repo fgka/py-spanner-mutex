@@ -1,0 +1,11 @@
+{
+  "database_id": "test_spanner_database_id",
+  "instance_id": "test_spanner_instance_id",
+  "mutex_display_name": "test_mutex",
+  "mutex_staleness_in_secs": 10,
+  "mutex_ttl_in_secs": 300,
+  "mutex_uuid": "f01cae82-db2d-4ee4-a2bb-28f209126a4f",
+  "mutex_wait_time_in_secs": 600,
+  "project_id": "test_project_id",
+  "table_id": "test_spanner_table_id"
+}

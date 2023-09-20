@@ -57,6 +57,27 @@ class SpannerMutex(abc.ABC):
         )
         self._creds = preprocess.validate_type(creds, "creds", credentials.Credentials, is_none_valid=True)
 
+    @property
+    def config(self) -> mutex.MutexConfig:
+        """
+        Config object
+        """
+        return self._config
+
+    @property
+    def client_uuid(self) -> uuid.UUID:
+        """
+        This client's UUID
+        """
+        return self._client_uuid
+
+    @property
+    def client_display_name(self) -> str:
+        """
+        This client's display name
+        """
+        return self._client_display_name
+
     def validate(self, raise_if_invalid: Optional[bool] = True) -> bool:
         """
         Will check if the full Spanner infrastructure is ready, i.e.:
@@ -97,12 +118,17 @@ class SpannerMutex(abc.ABC):
         return self._state().status
 
     def _state(self) -> Optional[mutex.MutexState]:
-        raw_row = next(
-            spanner.read_table_rows(
-                db=self._mutex_db(), table_id=self._config.table_id, keys={str(self._config.mutex_uuid)}
+        result = None
+        try:
+            raw_row = next(
+                spanner.read_table_rows(
+                    db=self._mutex_db(), table_id=self._config.table_id, keys={(str(self._config.mutex_uuid),)}
+                )
             )
-        )
-        return mutex.MutexState.from_spanner_row(raw_row)
+            result = mutex.MutexState.from_spanner_row(raw_row)
+        except StopIteration:
+            _LOGGER.debug("There is no mutex state entry for mutex ID '%s'", self._config.mutex_uuid)
+        return result
 
     def _mutex_db(self) -> database.Database:
         return _spanner_db(
@@ -213,11 +239,12 @@ class SpannerMutex(abc.ABC):
         )
 
     def _set_mutex(self, state: mutex.MutexState) -> bool:
+        row = state.to_spanner_row()
         try:
-            spanner.upsert_table_row(db=self._mutex_db(), table_id=self._config.table_id, row=state.to_spanner_row())
+            spanner.upsert_table_row(db=self._mutex_db(), table_id=self._config.table_id, row=row)
             result = True
         except Exception as err:
-            _LOGGER.info("Could not set mutex to '%s' at '%s'. Error: %s", state, str(self), err)
+            _LOGGER.info("Could not set mutex to '%s' at '%s'. Row: '%s'. Error: %s", state, str(self), row, err)
             result = False
         return result
 
@@ -259,7 +286,7 @@ def _spanner_table(
     return spanner.spanner_table(db=db, table_id=table_id, must_exist=must_exist)
 
 
-@cachetools.cached(cachetools.TTLCache(maxsize=10, ttl=_SPANNER_DATABASE_CACHE_TTL_IN_SECONDS))
+@cachetools.cached(cachetools.TTLCache(maxsize=10, ttl=_SPANNER_DATABASE_CACHE_TTL_IN_SECONDS.total_seconds()))
 def _spanner_db(
     *,
     instance_id: str,

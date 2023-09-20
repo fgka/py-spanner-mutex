@@ -76,6 +76,7 @@ class MutexState(dto_defaults.HasFromJsonString):
     def to_spanner_row(self, with_commit_ts: Optional[bool] = True) -> Dict[str, Any]:
         result = self.as_dict()
         result["uuid"] = str(self.uuid)
+        result["status"] = self.status.value
         result["update_client_uuid"] = str(self.update_client_uuid)
         if with_commit_ts:
             result["update_time_utc"] = spanner.COMMIT_TIMESTAMP

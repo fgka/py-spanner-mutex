@@ -246,4 +246,4 @@ def _upsert_row(txn: transaction.Transaction, table_id: str, row: Dict[str, Any]
     for key, val in row.items():
         columns.append(key)
         values.append(val)
-    txn.insert_or_update(table=table_id, columns=columns, values=values)
+    txn.insert_or_update(table=table_id, columns=columns, values=[values])
