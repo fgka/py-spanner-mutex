@@ -13,6 +13,12 @@ variable "region" {
   default     = "us-central1"
 }
 
+variable "is_production" {
+  description = "If it is production environment, then project the database and table"
+  type        = bool
+  default     = true
+}
+
 //////////////////////
 // Spanner Instance //
 //////////////////////

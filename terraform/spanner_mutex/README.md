@@ -82,7 +82,7 @@ terraform apply ${TMP} && rm -f ${TMP}
 
 | Name | Version |
 |------|---------|
-| <a name="provider_google"></a> [google](#provider\_google) | 4.82.0 |
+| <a name="provider_google"></a> [google](#provider\_google) | 4.83.0 |
 
 ## Modules
 
@@ -99,6 +99,7 @@ No modules.
 
 | Name | Description | Type | Default | Required |
 |------|-------------|------|---------|:--------:|
+| <a name="input_is_production"></a> [is\_production](#input\_is\_production) | If it is production environment, then project the database and table | `bool` | `true` | no |
 | <a name="input_max_mutex_table_row_ttl_in_days"></a> [max\_mutex\_table\_row\_ttl\_in\_days](#input\_max\_mutex\_table\_row\_ttl\_in\_days) | Once a mutex row in created, for how long to keep it before auto-removing it, in days | `number` | `3` | no |
 | <a name="input_mutex_db_ddl_tmpl"></a> [mutex\_db\_ddl\_tmpl](#input\_mutex\_db\_ddl\_tmpl) | Spanner mutex DB DDL script template | `string` | `"templates/mutex_db_ddl.sql.tmpl"` | no |
 | <a name="input_mutex_db_name"></a> [mutex\_db\_name](#input\_mutex\_db\_name) | Spanner database name for distributed mutex. | `string` | `"distributed_mutex"` | no |

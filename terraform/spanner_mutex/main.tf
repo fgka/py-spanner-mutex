@@ -32,6 +32,6 @@ resource "google_spanner_database" "database" {
   version_retention_period = "${var.mutex_db_retention_in_hours}h"
   ddl                      = [templatefile(local.mutex_db_ddl_tmpl, local.mutex_db_ddl_template_values)]
   database_dialect         = "GOOGLE_STANDARD_SQL"
-  deletion_protection      = false
-  enable_drop_protection   = true
+  deletion_protection      = var.is_production
+  enable_drop_protection   = var.is_production
 }

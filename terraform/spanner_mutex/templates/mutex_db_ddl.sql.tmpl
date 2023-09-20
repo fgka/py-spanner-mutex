@@ -6,4 +6,4 @@ CREATE TABLE IF NOT EXISTS ${MUTEX_TABLE_NAME} (
     update_client_uuid         STRING(1024),
     update_client_display_name STRING(1024),
 ) PRIMARY KEY(uuid),
-ROW DELETION POLICY ( OLDER_THAN (update_ts, INTERVAL ${MUTEX_ROW_TTL_IN_DAYS} DAY ) )
+ROW DELETION POLICY ( OLDER_THAN (update_time_utc, INTERVAL ${MUTEX_ROW_TTL_IN_DAYS} DAY ) )
