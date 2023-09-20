@@ -1,6 +1,7 @@
 # vim: ai:sw=4:ts=4:sta:et:fo=croql
 # pylint: disable=missing-module-docstring,missing-class-docstring,invalid-name,too-few-public-methods
 # type: ignore
+import uuid
 from typing import Any, Dict, List, Optional
 
 import attrs
@@ -338,6 +339,7 @@ class TestHasFromDict:
 
 @attrs.define(**const.ATTRS_DEFAULTS)
 class _MyHasFromJsonStringA(dto_defaults.HasFromJsonString):
+    field_uuid: Optional[uuid.UUID] = attrs.field(default=None)
     field_str: Optional[str] = attrs.field(default=None)
     field_float: Optional[float] = attrs.field(default=None)
 
@@ -353,7 +355,7 @@ class TestHasFromJsonString:
         # Given
         obj = _MyHasFromJsonStringB(
             field_int=17,
-            field_a=_MyHasFromJsonStringA(field_str="TEST_JSON", field_float="1.1"),
+            field_a=_MyHasFromJsonStringA(field_uuid=uuid.uuid4(), field_str="TEST_JSON", field_float="1.1"),
         )
         # When
         result = _MyHasFromJsonStringB.from_json(obj.as_json())

@@ -17,10 +17,6 @@ from py_spanner_mutex.common import logger, preprocess
 from py_spanner_mutex.dto import mutex
 from py_spanner_mutex.gcp import spanner
 
-DEFAULT_MUTEX_TTL_IN_SECONDS: int = 5 * 60  # 5 minutes
-DEFAULT_MUTEX_WAIT_TIME_IN_SECONDS: int = 10  # 10 seconds
-DEFAULT_MUTEX_STALENESS_IN_SECONDS: int = 2 * DEFAULT_MUTEX_TTL_IN_SECONDS
-
 _SPANNER_DATABASE_CACHE_TTL_IN_SECONDS: timedelta = timedelta(minutes=30)
 _MUTEX_TTL_JITTER_IN_PERCENT: float = 0.05  # 5%
 _RAND: random.Random = random.Random()  # for testing purposes, mock the method using it
@@ -33,7 +29,7 @@ class SpannerMutexError(RuntimeError):
     """
 
 
-class SpannerMutex:  # abc.ABC):
+class SpannerMutex(abc.ABC):
     """
     Mutex base class that needs to be extended.
 
@@ -46,55 +42,19 @@ class SpannerMutex:  # abc.ABC):
     def __init__(
         self,
         *,
-        mutex_uuid: uuid.UUID,
-        instance_id: str,
-        database_id: str,
-        table_id: str,
-        mutex_ttl_in_secs: Optional[int] = None,
-        mutex_staleness_in_secs: Optional[int] = None,
-        mutex_wait_time_in_secs: Optional[int] = None,
-        mutex_display_name: Optional[str] = None,
+        config: mutex.MutexConfig,
         client_uuid: Optional[uuid.UUID] = None,
         client_display_name: Optional[str] = None,
-        project_id: Optional[str] = None,
         creds: Optional[credentials.Credentials] = None,
     ):
         _LOGGER.debug("Creating '%s' with '%s'", self.__class__.__name__, locals())
-        self._mutex_uuid = preprocess.validate_type(mutex_uuid, "mutex_uuid", uuid.UUID)
-        self._instance_id = preprocess.string(instance_id, "instance_id")
-        self._database_id = preprocess.string(database_id, "database_id")
-        self._table_id = preprocess.string(table_id, "table_name")
-        self._mutex_ttl_in_secs = preprocess.integer(
-            mutex_ttl_in_secs,
-            "mutex_ttl_in_secs",
-            lower_bound=1,
-            is_none_valid=True,
-            default_value=DEFAULT_MUTEX_TTL_IN_SECONDS,
-        )
-        self._mutex_staleness_in_secs = preprocess.integer(
-            mutex_staleness_in_secs,
-            "mutex_staleness_in_secs",
-            lower_bound=self._mutex_ttl_in_secs + 1,
-            is_none_valid=True,
-            default_value=DEFAULT_MUTEX_STALENESS_IN_SECONDS,
-        )
-        self._mutex_wait_time_in_secs = preprocess.integer(
-            mutex_wait_time_in_secs,
-            "mutex_wait_time_in_secs",
-            lower_bound=1,
-            is_none_valid=True,
-            default_value=DEFAULT_MUTEX_WAIT_TIME_IN_SECONDS,
-        )
-        self._mutex_display_name = preprocess.string(
-            mutex_display_name, "mutex_display_name", is_none_valid=True, default_value=str(self._mutex_uuid)
-        )
+        self._config = preprocess.validate_type(config, "config", mutex.MutexConfig)
         self._client_uuid = preprocess.validate_type(
             client_uuid, "client_uuid", uuid.UUID, is_none_valid=True, default_value=uuid.uuid4()
         )
         self._client_display_name = preprocess.string(
             client_display_name, "client_display_name", is_none_valid=True, default_value=str(self._client_uuid)
         )
-        self._project_id = preprocess.string(project_id, "project_id", is_none_valid=True)
         self._creds = preprocess.validate_type(creds, "creds", credentials.Credentials, is_none_valid=True)
 
     def validate(self, raise_if_invalid: Optional[bool] = True) -> bool:
@@ -114,11 +74,11 @@ class SpannerMutex:  # abc.ABC):
         tbl = None
         try:
             tbl = _spanner_table(
-                instance_id=self._instance_id,
-                database_id=self._database_id,
-                project_id=self._project_id,
+                instance_id=self._config.instance_id,
+                database_id=self._config.database_id,
+                project_id=self._config.project_id,
                 creds=self._creds,
-                table_id=self._table_id,
+                table_id=self._config.table_id,
                 must_exist=True,
             )
         except Exception as err:
@@ -137,15 +97,22 @@ class SpannerMutex:  # abc.ABC):
         return self._state().status
 
     def _state(self) -> Optional[mutex.MutexState]:
-        raw_row = next(spanner.read_table_rows(db=self._mutex_db(), table_id=self._table_id, keys=[{self._mutex_uuid}]))
+        raw_row = next(
+            spanner.read_table_rows(
+                db=self._mutex_db(), table_id=self._config.table_id, keys={str(self._config.mutex_uuid)}
+            )
+        )
         return mutex.MutexState.from_spanner_row(raw_row)
 
     def _mutex_db(self) -> database.Database:
         return _spanner_db(
-            instance_id=self._instance_id, database_id=self._database_id, project_id=self._project_id, creds=self._creds
+            instance_id=self._config.instance_id,
+            database_id=self._config.database_id,
+            project_id=self._config.project_id,
+            creds=self._creds,
         )
 
-    # @abc.abstractmethod
+    @abc.abstractmethod
     def is_mutex_needed(self) -> bool:
         """
         It should check if the mutex is still needed or not. Usually you have two categories of mutexes:
@@ -153,9 +120,8 @@ class SpannerMutex:  # abc.ABC):
         * Mutex need depends on an external factor and sometimes there are no tasks/jobs.
             In this case you should check if there are tasks/jobs to be executed in the critical section.
         """
-        return True
 
-    # @abc.abstractmethod
+    @abc.abstractmethod
     def execute_critical_section(self, max_end_time: datetime) -> None:
         """
         This method will be called if there is a task/job to be executed in the critical section.
@@ -165,7 +131,6 @@ class SpannerMutex:  # abc.ABC):
             max_end_time: this is your time budget, once this time is reached you should expect that
                 another client/thread will try to execute the critical section, assuming you couldn't.
         """
-        print("Tada")
 
     def start(self) -> None:
         """
@@ -187,9 +152,11 @@ class SpannerMutex:  # abc.ABC):
                         _LOGGER.critical("Failed critical section at: '%s'. Error: %s", str(self), err)
                         self._release_mutex(error=err)
             _LOGGER.debug(
-                "Waiting '%d' seconds for next mutex check cycle on '%s'", self._mutex_wait_time_in_secs, str(self)
+                "Waiting '%d' seconds for next mutex check cycle on '%s'",
+                self._config.mutex_wait_time_in_secs,
+                str(self),
             )
-            time.sleep(self._mutex_wait_time_in_secs)
+            time.sleep(self._config.mutex_wait_time_in_secs)
 
     def _should_try_to_acquire_mutex(self, state: Optional[mutex.MutexState]) -> bool:
         """
@@ -213,7 +180,7 @@ class SpannerMutex:  # abc.ABC):
         Either the state is :py:obj:`None` or the last update is older than mutex staleness threshold.
         """
         return state is None or (
-            state.update_time_utc + timedelta(seconds=self._mutex_staleness_in_secs) < datetime.utcnow()
+            state.update_time_utc + timedelta(seconds=self._config.mutex_staleness_in_secs) < datetime.utcnow()
         )
 
     @staticmethod
@@ -223,12 +190,12 @@ class SpannerMutex:  # abc.ABC):
     def _is_watermark_breached(self, state: Optional[mutex.MutexState]) -> bool:
         result = True
         if state is not None:
-            jitter_ttl_in_secs = self._mutex_ttl_in_secs + self._jitter_in_secs()
+            jitter_ttl_in_secs = self._config.mutex_ttl_in_secs + self._jitter_in_secs()
             result = state.is_state_stale(jitter_ttl_in_secs)
         return result
 
     def _jitter_in_secs(self) -> int:
-        max_jitter_in_secs = int(max(self._mutex_ttl_in_secs * _MUTEX_TTL_JITTER_IN_PERCENT, 1))
+        max_jitter_in_secs = int(max(self._config.mutex_ttl_in_secs * _MUTEX_TTL_JITTER_IN_PERCENT, 1))
         return _RAND.randint(0, max_jitter_in_secs)
 
     def _acquire_mutex(self) -> bool:
@@ -237,8 +204,8 @@ class SpannerMutex:  # abc.ABC):
 
     def _create_state(self, status: mutex.MutexStatus) -> mutex.MutexState:
         return mutex.MutexState(
-            uuid=self._mutex_uuid,
-            display_name=self._mutex_display_name,
+            uuid=self._config.mutex_uuid,
+            display_name=self._config.mutex_display_name,
             status=status,
             update_time_utc=datetime.utcnow(),
             update_client_uuid=self._client_uuid,
@@ -247,7 +214,7 @@ class SpannerMutex:  # abc.ABC):
 
     def _set_mutex(self, state: mutex.MutexState) -> bool:
         try:
-            spanner.upsert_table_row(db=self._mutex_db(), table_id=self._table_id, row=state.to_spanner_row())
+            spanner.upsert_table_row(db=self._mutex_db(), table_id=self._config.table_id, row=state.to_spanner_row())
             result = True
         except Exception as err:
             _LOGGER.info("Could not set mutex to '%s' at '%s'. Error: %s", state, str(self), err)
@@ -255,7 +222,7 @@ class SpannerMutex:  # abc.ABC):
         return result
 
     def _max_end_time(self) -> datetime:
-        return datetime.utcnow() + timedelta(seconds=self._mutex_ttl_in_secs)
+        return datetime.utcnow() + timedelta(seconds=self._config.mutex_ttl_in_secs)
 
     def _release_mutex(self, error: Optional[Exception] = None) -> None:
         status = mutex.MutexStatus.DONE if error is None else mutex.MutexStatus.FAILED
@@ -272,15 +239,7 @@ class SpannerMutex:  # abc.ABC):
     def __str__(self) -> str:
         return (
             f"{self.__class__.__name__}("
-            f"mutex_uuid='{self._mutex_uuid}', "
-            f"mutex_display_name='{self._mutex_display_name}', "
-            f"mutex_ttl_in_secs='{self._mutex_ttl_in_secs}', "
-            f"mutex_staleness_in_secs='{self._mutex_staleness_in_secs}', "
-            f"mutex_wait_time_in_secs='{self._mutex_wait_time_in_secs}', "
-            f"project_id='{self._project_id}', "
-            f"instance_id='{self._instance_id}', "
-            f"database_id='{self._database_id}', "
-            f"table_name='{self._table_id}', "
+            f"config='{self._config}', "
             f"client_uuid='{self._client_uuid}', "
             f"client_display_name='{self._client_display_name}', "
             f"creds='{self._creds}')"

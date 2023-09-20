@@ -2,13 +2,20 @@
 """Mutex table row"""
 import uuid as sys_uuid
 from datetime import datetime, timedelta
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Optional, Union
 
 import attrs
 import pytz
 from google.cloud import spanner
 
 from py_spanner_mutex.common import const, dto_defaults
+
+MIN_MUTEX_TTL_IN_SECONDS: int = 10  # 10 second
+DEFAULT_MUTEX_TTL_IN_SECONDS: int = 5 * 60  # 5 minutes
+MIN_MUTEX_WAIT_TIME_IN_SECONDS: int = 1  # 1 second
+DEFAULT_MUTEX_WAIT_TIME_IN_SECONDS: int = 10  # 10 seconds
+MIN_MUTEX_STALENESS_IN_SECONDS: int = MIN_MUTEX_TTL_IN_SECONDS + 1  # must be greater than TTL
+DEFAULT_MUTEX_STALENESS_IN_SECONDS: int = 2 * DEFAULT_MUTEX_TTL_IN_SECONDS
 
 
 class MutexStatus(dto_defaults.EnumWithFromStrIgnoreCase):
@@ -58,7 +65,7 @@ class MutexState(dto_defaults.HasFromJsonString):
         """
         update_time_utc = row.get("update_time_utc", datetime.utcnow()).astimezone(pytz.UTC)
         return MutexState(
-            uuid=sys_uuid.UUID(f"{{{row.get('uuid')}}}"),
+            uuid=_str_uuid_converter(row.get("uuid")),
             display_name=row.get("display_name"),
             status=MutexStatus.from_str(row.get("status")),
             update_time_utc=update_time_utc,
@@ -73,3 +80,51 @@ class MutexState(dto_defaults.HasFromJsonString):
         if with_commit_ts:
             result["update_time_utc"] = spanner.COMMIT_TIMESTAMP
         return result
+
+
+def _str_uuid_converter(value: Union[sys_uuid.UUID, str]) -> sys_uuid.UUID:
+    if isinstance(value, sys_uuid.UUID):
+        result = value
+    elif isinstance(value, str):
+        result = sys_uuid.UUID(f"{{{value}}}")
+    else:
+        raise ValueError(f"Value '{value}'({type(value)}) is not supported")
+    return result
+
+
+@attrs.define(**const.ATTRS_DEFAULTS)
+class MutexConfig(dto_defaults.HasFromJsonString):
+    """Configuration DTO."""
+
+    mutex_uuid: sys_uuid.UUID = attrs.field(
+        converter=_str_uuid_converter, validator=attrs.validators.instance_of(sys_uuid.UUID)
+    )
+    instance_id: str = attrs.field(validator=attrs.validators.instance_of(str))
+    database_id: str = attrs.field(validator=attrs.validators.instance_of(str))
+    table_id: str = attrs.field(validator=attrs.validators.instance_of(str))
+    project_id: Optional[str] = attrs.field(
+        default=None, validator=attrs.validators.optional(attrs.validators.instance_of(str))
+    )
+    mutex_display_name: Optional[str] = attrs.field(
+        default=None, validator=attrs.validators.optional(attrs.validators.instance_of(str))
+    )
+    mutex_ttl_in_secs: Optional[int] = attrs.field(
+        default=DEFAULT_MUTEX_TTL_IN_SECONDS,
+        validator=attrs.validators.and_(
+            attrs.validators.optional(attrs.validators.instance_of(int)), attrs.validators.gt(MIN_MUTEX_TTL_IN_SECONDS)
+        ),
+    )
+    mutex_staleness_in_secs: Optional[int] = attrs.field(
+        default=DEFAULT_MUTEX_WAIT_TIME_IN_SECONDS,
+        validator=attrs.validators.and_(
+            attrs.validators.optional(attrs.validators.instance_of(int)),
+            attrs.validators.gt(MIN_MUTEX_WAIT_TIME_IN_SECONDS),
+        ),
+    )
+    mutex_wait_time_in_secs: Optional[int] = attrs.field(
+        default=DEFAULT_MUTEX_STALENESS_IN_SECONDS,
+        validator=attrs.validators.and_(
+            attrs.validators.optional(attrs.validators.instance_of(int)),
+            attrs.validators.gt(MIN_MUTEX_STALENESS_IN_SECONDS),
+        ),
+    )

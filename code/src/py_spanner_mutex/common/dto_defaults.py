@@ -5,6 +5,7 @@
 """
 import enum
 import json
+import uuid
 from typing import Any, Dict, Optional
 
 import attrs
@@ -127,7 +128,7 @@ class HasPatchWith(HasIsEmpty):
 class HasFromDict(HasPatchWith):
     """To add :py:meth:`from_dict` to children."""
 
-    def as_dict(self) -> Dict[str, str]:
+    def as_dict(self) -> Dict[str, Any]:
         """Simple wrapper for:: attrs.asdict(self)
 
         Returns:
@@ -193,14 +194,15 @@ class HasFromDict(HasPatchWith):
         result = {}
         for field in list(attrs.fields(cls)):
             field_value = value.get(field.name)
-            if (
-                field_value is not None
-                and isinstance(field.type, type)  # things like lists and dicts are of type: typing.List/typing.Dict
-                and issubclass(field.type, HasFromDict)
-            ):
-                # recursion on from_dict()
+            if field_value is not None and isinstance(
+                field.type, type
+            ):  # things like lists and dicts are of type: typing.List/typing.Dict
                 try:
-                    field_value = field.type.from_dict(field_value)
+                    if issubclass(field.type, HasFromDict):
+                        # recursion on from_dict()
+                        field_value = field.type.from_dict(field_value)
+                    elif issubclass(field.type, uuid.UUID):
+                        field_value = uuid.UUID(field_value)
                 except Exception as err:  # pylint: disable=broad-except
                     field_value = None
                     _LOGGER.warning(
@@ -250,7 +252,11 @@ class HasFromJsonString(HasFromDict):
         """
         # first to dict
         try:
-            value_dict = attrs.asdict(self)
+            value_dict = self.as_dict()
+            # convert UUID to str
+            for field in list(attrs.fields(self.__class__)):
+                if isinstance(field.type, type) and issubclass(field.type, uuid.UUID):
+                    value_dict[field.name] = str(getattr(self, field.name))
         except Exception as err:
             raise ValueError(
                 f"Could not convert '{self}' to a dictionary for type {self.__class__.__name__}. Error: {err}"
