@@ -2,7 +2,7 @@
 # pylint: disable=missing-module-docstring,missing-class-docstring,protected-access
 # pylint: disable=attribute-defined-outside-init,invalid-name
 # type: ignore
-from typing import Any, Callable, Optional, Tuple
+from typing import Any, Callable, Generator, List, Optional, Tuple
 
 import pytest
 from google.auth import credentials
@@ -127,17 +127,66 @@ def test__client_nok_raise(monkeypatch, use_emulator: bool):
 _TEST_INSTANCE_ID: str = "TEST_INSTANCE_ID"
 _TEST_DATABASE_ID: str = "TEST_DATABASE_ID"
 _TEST_TABLE_ID: str = "TEST_TABLE_ID"
+_TEST_TABLE_COLUMN_NAMES: List[str] = ["col_a", "col_b", "col_c"]
+
+
+class _FieldStub:
+    def __init__(self, name: str):
+        self.name = name
 
 
 class _TableStub:
-    def __init__(self, *, table_id: str, exists: Optional[bool] = True, to_raise: Optional[bool] = False):
+    def __init__(
+        self,
+        *,
+        table_id: str,
+        col_names: Optional[List[str]] = None,
+        exists: Optional[bool] = True,
+        to_raise: Optional[bool] = False,
+    ):
         if to_raise:
             raise RuntimeError
         self.table_id = table_id
         self._exists = exists
+        col_names = col_names if col_names is not None else _TEST_TABLE_COLUMN_NAMES
+        self.schema = []
+        for col in col_names:
+            self.schema.append(_FieldStub(col))
 
     def exists(self) -> bool:
         return self._exists
+
+
+class _SnapshotStub:
+    def __init__(self, values: List[List[Any]]):
+        self._values = values
+        self.calls = {}
+
+    def read(self, table, columns, keyset, **kwargs) -> Generator[List[Any], None, None]:
+        if _SnapshotStub.read.__name__ not in self.calls:
+            self.calls[_SnapshotStub.read.__name__] = []
+        self.calls[_SnapshotStub.read.__name__].append(locals())
+        for vals in self._values:
+            yield vals
+
+
+class _SnapshotCtxMngr:
+    def __init__(self, values: List[List[Any]]):
+        self._values = values
+
+    def __enter__(self):
+        return _SnapshotStub(values=self._values)
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        pass
+
+
+class _TransactionStub:
+    def __init__(self):
+        self.called_upsert = []
+
+    def insert_or_update(self, table, columns, values):
+        self.called_upsert.append(locals())
 
 
 class _DatabaseStub(database.Database):
@@ -151,6 +200,8 @@ class _DatabaseStub(database.Database):
         to_raise: Optional[bool] = False,
         table_exists: Optional[bool] = True,
         table_to_raise: Optional[bool] = False,
+        snapshot_values: Optional[List[List[Any]]] = None,
+        table_columns: Optional[List[str]] = None,
     ):
         if to_raise:
             raise RuntimeError
@@ -161,6 +212,9 @@ class _DatabaseStub(database.Database):
         self._is_ready = is_ready
         self._table_exists = table_exists
         self._table_to_raise = table_to_raise
+        self._snapshot_values = snapshot_values if snapshot_values else []
+        self._table_columns = table_columns
+        self.called_run_in_txn = []
 
     def exists(self) -> bool:
         return self._exists
@@ -169,7 +223,20 @@ class _DatabaseStub(database.Database):
         return self._is_ready
 
     def table(self, table_id: str) -> Any:
-        return _TableStub(table_id=table_id, exists=self._table_exists, to_raise=self._table_to_raise)
+        return _TableStub(
+            table_id=table_id, exists=self._table_exists, to_raise=self._table_to_raise, col_names=self._table_columns
+        )
+
+    def snapshot(self) -> Any:
+        return _SnapshotCtxMngr(values=self._snapshot_values)
+
+    def reload(self) -> None:
+        pass
+
+    def run_in_transaction(self, func: Callable, *args, **kw):
+        txn = _TransactionStub()
+        self.called_run_in_txn.append(locals())
+        func(txn, *args, **kw)
 
 
 class _InstanceStub:
@@ -424,12 +491,7 @@ def test_spanner_db_nok_database_is_not_ready(monkeypatch):
 
 def test_spanner_table_ok():
     # Given
-    db = _DatabaseStub(
-        instance=_InstanceStub(
-            client=_ClientStub(project_id=_TEST_PROJECT_ID, creds=_TEST_CREDS), instance_id=_TEST_INSTANCE_ID
-        ),
-        database_id=_TEST_DATABASE_ID,
-    )
+    db = _create_db()
     table_id = _TEST_TABLE_ID
     # When
     result = gcp_spanner.spanner_table(db=db, table_id=table_id)
@@ -438,15 +500,19 @@ def test_spanner_table_ok():
     assert result.table_id == table_id
 
 
+def _create_db(**db_kwargs):
+    if "database_id" not in db_kwargs:
+        db_kwargs["database_id"] = _TEST_DATABASE_ID
+    if "instance" not in db_kwargs:
+        client = _ClientStub(project_id=_TEST_PROJECT_ID, creds=_TEST_CREDS)
+        instance = _InstanceStub(client=client, instance_id=_TEST_INSTANCE_ID)
+        db_kwargs["instance"] = instance
+    return _DatabaseStub(**db_kwargs)
+
+
 def test_spanner_table_ok_table_does_not_exist():
     # Given
-    db = _DatabaseStub(
-        instance=_InstanceStub(
-            client=_ClientStub(project_id=_TEST_PROJECT_ID, creds=_TEST_CREDS), instance_id=_TEST_INSTANCE_ID
-        ),
-        database_id=_TEST_DATABASE_ID,
-        table_exists=False,
-    )
+    db = _create_db(table_exists=False)
     table_id = _TEST_TABLE_ID
     # When
     result = gcp_spanner.spanner_table(db=db, table_id=table_id, must_exist=False)
@@ -456,13 +522,7 @@ def test_spanner_table_ok_table_does_not_exist():
 
 def test_spanner_table_nok_table_raise():
     # Given
-    db = _DatabaseStub(
-        instance=_InstanceStub(
-            client=_ClientStub(project_id=_TEST_PROJECT_ID, creds=_TEST_CREDS), instance_id=_TEST_INSTANCE_ID
-        ),
-        database_id=_TEST_DATABASE_ID,
-        table_to_raise=True,
-    )
+    db = _create_db(table_to_raise=True)
     table_id = _TEST_TABLE_ID
     # When/Then
     with pytest.raises(gcp_spanner.SpannerError):
@@ -471,14 +531,61 @@ def test_spanner_table_nok_table_raise():
 
 def test_spanner_table_nok_table_does_not_exist():
     # Given
-    db = _DatabaseStub(
-        instance=_InstanceStub(
-            client=_ClientStub(project_id=_TEST_PROJECT_ID, creds=_TEST_CREDS), instance_id=_TEST_INSTANCE_ID
-        ),
-        database_id=_TEST_DATABASE_ID,
-        table_exists=False,
-    )
+    db = _create_db(table_exists=False)
     table_id = _TEST_TABLE_ID
     # When/Then
     with pytest.raises(gcp_spanner.SpannerError):
         gcp_spanner.spanner_table(db=db, table_id=table_id, must_exist=True)
+
+
+_TEST_KEY: str = "TEST_KEY"
+
+
+def test_read_table_rows_ok_without_results():
+    # Given
+    db = _create_db()
+    table_id = _TEST_TABLE_ID
+    keys = {f"{_TEST_KEY}_A", f"{_TEST_KEY}_B", f"{_TEST_KEY}_C"}
+    # When
+    result = []
+    for r in gcp_spanner.read_table_rows(db=db, table_id=table_id, keys=keys):
+        result.append(r)
+    # Then
+    assert not result
+
+
+def test_read_table_rows_ok_with_results():
+    # Given
+    columns = ["id", "col_str", "col_int"]
+    values = [
+        [f"{_TEST_KEY}_A", "value_a", 100],
+        [f"{_TEST_KEY}_B", "value_b", 200],
+        [f"{_TEST_KEY}_C", "value_c", 300],
+    ]
+    values_dict = {val[0]: val[1:] for val in values}
+    db = _create_db(table_columns=columns, snapshot_values=values)
+    table_id = _TEST_TABLE_ID
+    keys = {val[0] for val in values}
+    # When
+    result = []
+    for r in gcp_spanner.read_table_rows(db=db, table_id=table_id, keys=keys):
+        result.append(r)
+    # Then
+    assert len(result) == len(values)
+    for r in result:
+        id = r.get("id")
+        exp_vals = values_dict.get(id)
+        assert exp_vals
+        for ndx in range(1, len(columns)):
+            assert r.get(columns[ndx]) == exp_vals[ndx - 1]
+
+
+def test_upsert_table_row_ok():
+    # Given
+    row = {"id": _TEST_KEY, "col_str": "str_value", "col_int": 123}
+    db = _create_db()
+    table_id = _TEST_TABLE_ID
+    # When
+    gcp_spanner.upsert_table_row(db=db, table_id=table_id, row=row)
+    # Then
+    assert len(db.called_run_in_txn) == 1

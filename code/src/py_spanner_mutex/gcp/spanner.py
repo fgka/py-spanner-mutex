@@ -235,8 +235,8 @@ def upsert_table_row(*, db: database.Database, table_id: str, row: Dict[str, Any
     preprocess.string(table_id, "table_id")
     preprocess.validate_type(row, "row", dict)
     # logic
-    db.run_in_transaction(_upsert_row, (table_id, row))
-    _LOGGER.debug("Upserting ended successfully for table '%s' in database '%s' and row '%s'", db.name, table_id, row)
+    db.run_in_transaction(_upsert_row, table_id, row)
+    _LOGGER.debug("Upsert ended successfully for table '%s' in database '%s' and row '%s'", db.name, table_id, row)
 
 
 def _upsert_row(txn: transaction.Transaction, table_id: str, row: Dict[str, Any]) -> None:

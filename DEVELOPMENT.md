@@ -193,4 +193,13 @@ Add `--no-cov` to `Additional Arguments` field:
 
 ![pytest](./doc/pycharm/3_pycharm_pytest_template.png)
 
+
+### Enable proper Poetry pytest debugging
+
+This is documented [Python-poetry bug 5138](https://github.com/python-poetry/poetry/issues/5138):
+
+Uncheck: ``Settings`` -> ``Build, Execution, Deployment`` -> ``Python Debugger`` -> ``Attach to subprocess automatically while debugging``
+
+![debug](./doc/pycharm/4_pycharm_debug_subprocess.png)
+
 </details>
