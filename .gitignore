@@ -112,3 +112,7 @@ venv.bak/
 
 # binaries
 **/*.whl
+
+# configs
+config.json
+test_config.json

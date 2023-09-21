@@ -5,11 +5,21 @@
 locals {
   # templating
   terraform_module_root_dir = path.module
-  mutex_db_ddl_tmpl         = "${local.terraform_module_root_dir}/${var.mutex_db_ddl_tmpl}"
+  mutex_db_ddl_tmpl         = abspath("${local.terraform_module_root_dir}/${var.mutex_db_ddl_tmpl}")
   # DDL Template
   mutex_db_ddl_template_values = {
     MUTEX_TABLE_NAME      = var.mutex_table_name,
     MUTEX_ROW_TTL_IN_DAYS = var.max_mutex_table_row_ttl_in_days,
+  }
+  # test config JSON
+  test_config_json_tmpl = abspath("${local.terraform_module_root_dir}/${var.test_config_json_tmpl}")
+  test_config_json      = abspath("${local.terraform_module_root_dir}/${var.test_config_json}")
+  test_config_template_values = {
+    MUTEX_UUID        = random_uuid.test_mutex.result
+    PROJECT_ID        = var.project_id
+    MUTEX_INSTANCE_ID = data.google_spanner_instance.instance.name
+    MUTEX_DATABASE_ID = google_spanner_database.database.name
+    MUTEX_TABLE_ID    = var.mutex_table_name
   }
 }
 
@@ -34,4 +44,16 @@ resource "google_spanner_database" "database" {
   database_dialect         = "GOOGLE_STANDARD_SQL"
   deletion_protection      = var.is_production
   enable_drop_protection   = var.is_production
+}
+
+//////////////////////
+// Test Config JSON //
+//////////////////////
+
+resource "random_uuid" "test_mutex" {
+}
+
+resource "local_file" "test_config_json" {
+  content  = templatefile(local.test_config_json_tmpl, local.test_config_template_values)
+  filename = local.test_config_json
 }

@@ -83,6 +83,8 @@ terraform apply ${TMP} && rm -f ${TMP}
 | Name | Version |
 |------|---------|
 | <a name="provider_google"></a> [google](#provider\_google) | 4.83.0 |
+| <a name="provider_local"></a> [local](#provider\_local) | 2.4.0 |
+| <a name="provider_random"></a> [random](#provider\_random) | 3.5.1 |
 
 ## Modules
 
@@ -93,6 +95,8 @@ No modules.
 | Name | Type |
 |------|------|
 | [google_spanner_database.database](https://registry.terraform.io/providers/hashicorp/google/latest/docs/resources/spanner_database) | resource |
+| [local_file.test_config_json](https://registry.terraform.io/providers/hashicorp/local/latest/docs/resources/file) | resource |
+| [random_uuid.test_mutex](https://registry.terraform.io/providers/hashicorp/random/latest/docs/resources/uuid) | resource |
 | [google_spanner_instance.instance](https://registry.terraform.io/providers/hashicorp/google/latest/docs/data-sources/spanner_instance) | data source |
 
 ## Inputs
@@ -108,10 +112,13 @@ No modules.
 | <a name="input_project_id"></a> [project\_id](#input\_project\_id) | Project ID where to deploy and source of data. | `string` | n/a | yes |
 | <a name="input_region"></a> [region](#input\_region) | Default region where to create resources. | `string` | `"us-central1"` | no |
 | <a name="input_spanner_instance_name"></a> [spanner\_instance\_name](#input\_spanner\_instance\_name) | Spanner instance for distributed mutex. | `string` | n/a | yes |
+| <a name="input_test_config_json"></a> [test\_config\_json](#input\_test\_config\_json) | Spanner mutex config file output file path relative to module path | `string` | `"../../test_config.json"` | no |
+| <a name="input_test_config_json_tmpl"></a> [test\_config\_json\_tmpl](#input\_test\_config\_json\_tmpl) | Spanner mutex config file template to be used when testing the code | `string` | `"templates/test_config.json.tmpl"` | no |
 
 ## Outputs
 
 | Name | Description |
 |------|-------------|
 | <a name="output_spanner_database"></a> [spanner\_database](#output\_spanner\_database) | n/a |
+| <a name="output_test_config_json"></a> [test\_config\_json](#output\_test\_config\_json) | n/a |
 <!-- END OF PRE-COMMIT-TERRAFORM DOCS HOOK -->

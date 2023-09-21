@@ -54,6 +54,18 @@ variable "mutex_db_ddl_tmpl" {
   default     = "templates/mutex_db_ddl.sql.tmpl"
 }
 
+variable "test_config_json_tmpl" {
+  description = "Spanner mutex config file template to be used when testing the code"
+  type        = string
+  default     = "templates/test_config.json.tmpl"
+}
+
+variable "test_config_json" {
+  description = "Spanner mutex config file output file path relative to module path"
+  type        = string
+  default     = "../../test_config.json"
+}
+
 variable "mutex_table_name" {
   description = "Spanner table name distributed mutex."
   type        = string
