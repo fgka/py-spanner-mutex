@@ -9,7 +9,7 @@ The main motivation is to allow Cloud Run with multiple minimum instances to imp
 (If you are not familiar with the concept, this is discussed by [Martin Fowler](https://en.wikipedia.org/wiki/Martin_Fowler_(software_engineer)) in his blog post [Evolutionary Database Design](https://martinfowler.com/articles/evodb.html).)
 To avoid having to implement [Paxos](https://people.cs.rutgers.edu/~pxk/417/notes/paxos.html) we leverage Cloud Spanner to do our bidding.
 
-> :hand: If you are not interested in theoretical *gibberish* you can skip directly to TODO
+> :hand: If you are not interested in theoretical *gibberish* you can skip directly to [Show Me!](./README.md#show-me)
 
 ## Can It Work?
 
