@@ -35,72 +35,14 @@ echo "sed = '${SED}'"
 
 ## [Bootstrap](./bootstrap/README.md)
 
-**NOTE:** You should need this only once.
+Only once, since it enable necessary APIs and creates the terraform state bucket.
 
-```bash
-export TF_DIR="./bootstrap"
-```
+## [Spanner Instance](./spanner_instance/README.md)
 
-### Create ``terraform.tfvars`` (only once)
+Will create a minimal Spanner instance.
 
-```bash
-cp -f ${TF_DIR}/terraform.tfvars.tmpl ${TF_DIR}/terraform.tfvars
+## [Spanner Mutex](./spanner_mutex/README.md)
 
-${SED} -i \
-  -e "s/@@PROJECT_ID@@/${PROJECT_ID}/g" \
-  -e "s/@@REGION@@/${REGION}/g" \
-  ${TF_DIR}/terraform.tfvars
-```
-
-### Init
-
-```bash
-terraform -chdir=${TF_DIR} init -upgrade
-```
-
-### Plan
-
-```bash
-TMP=$(mktemp)
-terraform -chdir=${TF_DIR} plan \
-  -out ${TMP} \
-  -var-file=terraform.tfvars
-```
-
-### Apply
-
-```bash
-terraform -chdir=${TF_DIR} apply ${TMP} && rm -f ${TMP}
-```
-
-### Export bucket name
-
-```bash
-OUT_JSON=$(mktemp)
-terraform -chdir=${TF_DIR} output -json > ${OUT_JSON}
-echo "Terraform output in ${OUT_JSON}"
-
-export TF_STATE_BUCKET=$(jq -c -r ".tf_state_bucket.value.name" ${OUT_JSON})
-echo "Terraform state bucket name: '${TF_STATE_BUCKET}'"
-rm -f ${OUT_JSON}
-```
-
-### Copy generated `backend.tf` over to each module
-
-```bash
-TARGET_FILENAME="backend.tf"
-OUT_JSON=$(mktemp)
-terraform -chdir=${TF_DIR} output -json > ${OUT_JSON}
-echo "Terraform output in ${OUT_JSON}"
-
-jq -c -r ".backend_tf.value[]" ${OUT_JSON} \
-  | while read FILENAME; \
-    do \
-      ACTUAL_FILENAME="${TF_DIR}/${FILENAME}"
-      MODULE=${FILENAME##*.}; \
-      OUTPUT="./${MODULE}/${TARGET_FILENAME}"; \
-      echo "Copying: '${ACTUAL_FILENAME}' to '${OUTPUT}'"; \
-      cp ${ACTUAL_FILENAME} ${OUTPUT}; \
-    done
-rm -f ${OUT_JSON}
-```
+This creates the Spanner database into the available instance.
+On the database it will create the mutex table.
+The last bit is to generate the ``test_config.json`` to be used in [CLI](../code/CLI.md) testing.
