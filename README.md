@@ -45,4 +45,4 @@ The testing instructions are in [CLI.md](./code/CLI.md).
 There you will run multiple clients, all trying to acquire the critical section, with only one writing to a temporary local file.
 Having a single line in the output file shows that only one client was able to acquire and execute the critical section.
 
-# [How Can I Use It?](./USAGE.md)
+## [How can i use it?](./USAGE.md)
