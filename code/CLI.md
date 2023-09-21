@@ -1,4 +1,4 @@
-# Using The CLI To Test It All
+# Using the CLI to test it all
 
 version: 0.1.0
 
@@ -19,7 +19,7 @@ CFG_FILE="../test_config.json"
 [ -f ${CFG_FILE} ] && echo "All good, you have ${CFG_FILE}" || echo "Deploy spanner resources, you do not have ${CFG_FILE}"
 ```
 
-## Very Simple, Single Client
+## Very simple, single client
 
 > :hand: It is assumed you already have the infrastructure in [terraform](../terraform) and you have the file ``../test_config.json``
 
@@ -40,7 +40,7 @@ INFO:__main__:Starting single client critical section using: '{'config_file': Po
 [2023-09-21 17:14:21,568 __main__.py.single_client:34]INFO: Ended critical section for 'SimpleLocalSpannerMutex(config='MutexConfig(mutex_uuid=UUID('<UUID>'), instance_id='<INSTANCE ID>', database_id='distributed_mutex', table_id='distributed_mutex', project_id='<PROJECT ID>', mutex_display_name='test_mutex', mutex_ttl_in_secs=30, mutex_staleness_in_secs=300, mutex_wait_time_in_secs=20, mutex_max_retries=5)', client_uuid='<UUID>', client_display_name='SimpleLocalSpannerMutex-<PID>-<THREAD ID>', creds='None')' and result in '<temp file name>'
 ```
 
-## More Abusive Test
+## More abusive test
 
 > :hand: It is assumed you already have the infrastructure in [terraform](../terraform) and you have the file ``../test_config.json``
 

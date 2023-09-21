@@ -1,3 +1,3 @@
-# Distributed Mutex Design
+# Distributed mutex design
 
 **UNDER CONSTRICTION**

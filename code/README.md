@@ -1,4 +1,4 @@
-# Cloud Spanner based Mutex
+# Cloud Spanner based mutex
 
 version: 0.1.0
 

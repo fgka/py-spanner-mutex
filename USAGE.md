@@ -1,4 +1,4 @@
-# How To Integrate Into Your Code
+# How to integrate into your code
 
 The basic concept is the following, based on code in [SimpleLocalSpannerMutex](code/src/py_spanner_mutex/_main_import.py):
 
@@ -44,7 +44,7 @@ def do_it(my_mutex: MySpannerMutex) -> None:
 
 That is it!
 
-## Caveats Or The Devil Is In The Details
+## Caveats -- or the devil is in the details
 
 First, we cannot make sure you properly implemented these two methods.
 Second, if ``is_mutex_needed()`` fails, the entire mutex execution fails.
