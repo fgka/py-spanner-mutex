@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "py-spanner-mutex"
-version = "0.1.0"
+version = "0.1.1"
 description = ""
 authors = ["Gustavo Kuhn Andriotti <gkandriotti@google.com>"]
 readme = "README.md"
