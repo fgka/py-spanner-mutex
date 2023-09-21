@@ -7,11 +7,12 @@ import random
 import time
 import uuid
 from datetime import datetime, timedelta
-from typing import Optional
+from typing import Any, Callable, Dict, Optional
 
 import cachetools
+import pytz
 from google.auth import credentials
-from google.cloud.spanner_v1 import database, table
+from google.cloud.spanner_v1 import database, table, transaction
 
 from py_spanner_mutex.common import logger, preprocess
 from py_spanner_mutex.dto import mutex
@@ -162,17 +163,21 @@ class SpannerMutex(abc.ABC):
         """
         Will start the critical section.
         """
-        while self.is_mutex_needed():
-            _LOGGER.info("Critical section is needed at: %s", self)
+        retries = 0
+        start_time = time.time()
+        has_executed = False
+        while self._safe_is_mutex_needed() and retries < self._config.mutex_max_retries:
+            _LOGGER.debug("Critical section is needed at: %s", self)
             state = self._state()
             _LOGGER.debug("Current mutex state '%s'", state)
             if self._should_try_to_acquire_mutex(state):
                 if self._acquire_mutex():
                     try:
                         _LOGGER.info("Mutex acquired, executing critical section for: %s", str(self))
-                        self.execute_critical_section(self._max_end_time())
+                        self._safe_execute_critical_section(self._max_end_time())
                         self._release_mutex()
                         _LOGGER.info("Critical section executed and mutex released successfully for: %s", str(self))
+                        has_executed = True
                         break
                     except Exception as err:
                         _LOGGER.critical("Failed critical section at: '%s'. Error: %s", str(self), err)
@@ -183,6 +188,33 @@ class SpannerMutex(abc.ABC):
                 str(self),
             )
             time.sleep(self._config.mutex_wait_time_in_secs)
+            retries += 1
+        # end by logging
+        elapsed_time = time.time() - start_time
+        if retries > self._config.mutex_max_retries and not has_executed:
+            _LOGGER.critical("Max retries %d reached after %f seconds. Client: %s", retries, elapsed_time, str(self))
+        else:
+            _LOGGER.info(
+                "Critical section execution = %r and ended after %d retries and %f seconds. Client: %s",
+                has_executed,
+                retries,
+                elapsed_time,
+                str(self),
+            )
+
+    def _safe_is_mutex_needed(self) -> bool:
+        method_name = f"{self.__class__.__name__}.{self.__class__.is_mutex_needed.__name__}"
+        return self._safe_method_execution(method_name, lambda: self.is_mutex_needed())
+
+    def _safe_method_execution(self, method_name: str, func: Callable) -> Any:
+        start_time = time.time()
+        try:
+            result = func()
+        except Exception as err:
+            raise SpannerMutexError(f"Could not execute '{method_name}'. Error: {err}") from err
+        elapsed_time = time.time() - start_time
+        _LOGGER.debug(f"Executed '{method_name}' in {elapsed_time} seconds. Client: {self}")
+        return result
 
     def _should_try_to_acquire_mutex(self, state: Optional[mutex.MutexState]) -> bool:
         """
@@ -197,7 +229,7 @@ class SpannerMutex(abc.ABC):
             result = True
         elif self._is_state_stale(state):
             result = True
-        elif not self._is_critical_section_done(state) and self._is_watermark_breached(state):
+        elif not self._is_critical_section_done_or_started(state) and self._is_watermark_breached(state):
             result = True
         return result
 
@@ -206,12 +238,13 @@ class SpannerMutex(abc.ABC):
         Either the state is :py:obj:`None` or the last update is older than mutex staleness threshold.
         """
         return state is None or (
-            state.update_time_utc + timedelta(seconds=self._config.mutex_staleness_in_secs) < datetime.utcnow()
+            state.update_time_utc.replace(tzinfo=pytz.UTC) + timedelta(seconds=self._config.mutex_staleness_in_secs)
+            < datetime.utcnow().replace(tzinfo=pytz.UTC)
         )
 
     @staticmethod
-    def _is_critical_section_done(state: Optional[mutex.MutexState]) -> bool:
-        return state is not None and state.status == mutex.MutexStatus.DONE
+    def _is_critical_section_done_or_started(state: Optional[mutex.MutexState]) -> bool:
+        return state is not None and state.status in (mutex.MutexStatus.DONE, mutex.MutexStatus.STARTED)
 
     def _is_watermark_breached(self, state: Optional[mutex.MutexState]) -> bool:
         result = True
@@ -223,6 +256,12 @@ class SpannerMutex(abc.ABC):
     def _jitter_in_secs(self) -> int:
         max_jitter_in_secs = int(max(self._config.mutex_ttl_in_secs * _MUTEX_TTL_JITTER_IN_PERCENT, 1))
         return _RAND.randint(0, max_jitter_in_secs)
+
+    def _safe_execute_critical_section(self, max_end_time: datetime) -> None:
+        method_name = f"{self.__class__.__name__}.{self.__class__.execute_critical_section.__name__}"
+        return self._safe_method_execution(
+            method_name, lambda: self.execute_critical_section(max_end_time=max_end_time)
+        )
 
     def _acquire_mutex(self) -> bool:
         state = self._create_state(mutex.MutexStatus.STARTED)
@@ -239,17 +278,39 @@ class SpannerMutex(abc.ABC):
         )
 
     def _set_mutex(self, state: mutex.MutexState) -> bool:
+        def can_upsert(txn: transaction.Transaction, tbl: table.Table, row: Dict[str, Any]) -> bool:
+            _LOGGER.debug("Checking if upsert should be performed, args: %s", locals())
+            res = True
+            try:
+                existing_row = next(
+                    spanner.read_in_transaction(txn=txn, tbl=tbl, keys={(str(self._config.mutex_uuid),)})
+                )
+                curr_state = mutex.MutexState.from_spanner_row(existing_row)
+                if curr_state.update_client_uuid == self._client_uuid and row.get("status") != existing_row.get(
+                    "status"
+                ):
+                    # here it is the same client updating the mutex and changing the status,
+                    # for instance from STARTED to DONE
+                    res = True
+                else:
+                    res = self._should_try_to_acquire_mutex(curr_state)
+                    _LOGGER.debug("Current mutex state '%s' and result on can upsert = %r", curr_state, res)
+            except StopIteration:
+                _LOGGER.debug("There is no mutex state entry for mutex ID '%s'", self._config.mutex_uuid)
+            return res
+
         row = state.to_spanner_row()
         try:
-            spanner.upsert_table_row(db=self._mutex_db(), table_id=self._config.table_id, row=row)
-            result = True
+            result = spanner.conditional_upsert_table_row(
+                db=self._mutex_db(), table_id=self._config.table_id, row=row, can_upsert=can_upsert
+            )
         except Exception as err:
             _LOGGER.info("Could not set mutex to '%s' at '%s'. Row: '%s'. Error: %s", state, str(self), row, err)
             result = False
         return result
 
     def _max_end_time(self) -> datetime:
-        return datetime.utcnow() + timedelta(seconds=self._config.mutex_ttl_in_secs)
+        return datetime.utcnow().replace(tzinfo=pytz.UTC) + timedelta(seconds=self._config.mutex_ttl_in_secs)
 
     def _release_mutex(self, error: Optional[Exception] = None) -> None:
         status = mutex.MutexStatus.DONE if error is None else mutex.MutexStatus.FAILED

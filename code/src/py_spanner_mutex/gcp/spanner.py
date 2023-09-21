@@ -5,7 +5,7 @@ Wrapper around Cloud Spanner Python API, which is a thin layer on top of `Cloud 
 .. _Cloud Spanner API: https://cloud.google.com/python/docs/reference/spanner/latest
 """
 import os
-from typing import Any, Dict, Generator, List, Optional, Set, Tuple
+from typing import Any, Callable, Dict, Generator, List, Optional, Set, Tuple
 
 from google import auth
 from google.auth import credentials
@@ -179,7 +179,9 @@ def _emulator_client(*args, **kwargs) -> spanner.Client:
     )
 
 
-def read_table_rows(*, db: database.Database, table_id: str, keys: Set[Any]) -> Generator[Dict[str, Any], None, None]:
+def read_table_rows(
+    *, db: database.Database, table_id: str, keys: Set[Tuple[Any]]
+) -> Generator[Dict[str, Any], None, None]:
     """
     Correct way to use this function::
         db = spanner_db(...)
@@ -218,13 +220,20 @@ def _create_row_from_columns_and_values(*, columns: List[str], values: List[Any]
     return result
 
 
-def upsert_table_row(*, db: database.Database, table_id: str, row: Dict[str, Any]) -> None:
+def conditional_upsert_table_row(
+    *,
+    db: database.Database,
+    table_id: str,
+    row: Dict[str, Any],
+    can_upsert: Optional[Callable[[transaction.Transaction, table.Table, Dict[str, Any]], bool]] = None,
+) -> bool:
     """
     Will insert or update the ``row``.
     Args:
         db:
         table_id:
         row:
+        can_upsert:
 
     Returns:
 
@@ -235,15 +244,52 @@ def upsert_table_row(*, db: database.Database, table_id: str, row: Dict[str, Any
     preprocess.string(table_id, "table_id")
     preprocess.validate_type(row, "row", dict)
     # logic
-    db.run_in_transaction(_upsert_row, table_id, row)
+    tbl = spanner_table(db=db, table_id=table_id)
+    result = db.run_in_transaction(_conditional_upsert_row, tbl, row, can_upsert)
     _LOGGER.debug("Upsert ended successfully for table '%s' in database '%s' and row '%s'", db.name, table_id, row)
+    return result
 
 
-def _upsert_row(txn: transaction.Transaction, table_id: str, row: Dict[str, Any]) -> None:
+def _conditional_upsert_row(
+    txn: transaction.Transaction,
+    tbl: table.Table,
+    row: Dict[str, Any],
+    can_upsert: Optional[Callable[[transaction.Transaction, table.Table, Dict[str, Any]], bool]] = None,
+) -> bool:
     _LOGGER.debug("Upserting with: %s", locals())
-    columns = []
-    values = []
-    for key, val in row.items():
-        columns.append(key)
-        values.append(val)
-    txn.insert_or_update(table=table_id, columns=columns, values=[values])
+    result = False
+    if can_upsert is None or can_upsert(txn, tbl, row):
+        columns = []
+        values = []
+        for key, val in row.items():
+            columns.append(key)
+            values.append(val)
+        txn.insert_or_update(table=tbl.table_id, columns=columns, values=[values])
+        result = True
+    return result
+
+
+def read_in_transaction(
+    *, txn: transaction.Transaction, tbl: table.Table, keys: Set[Tuple[Any]]
+) -> Generator[Dict[str, Any], None, None]:
+    """
+
+    Args:
+        txn:
+        tbl:
+        keys:
+
+    Returns:
+
+    """
+    _LOGGER.debug("Reading table using '%s'", locals())
+    # input validation
+    preprocess.validate_type(txn, "txn", transaction.Transaction)
+    preprocess.validate_type(tbl, "tbl", table.Table)
+    preprocess.validate_type(keys, "keys", set)
+    # logic
+    columns = [entry.name for entry in tbl.schema]
+    keyset = spanner.KeySet(keys=keys)
+    results: streamed.StreamedResultSet = txn.read(table=tbl.table_id, keyset=keyset, columns=columns)
+    for row in results:
+        yield _create_row_from_columns_and_values(columns=columns, values=row)

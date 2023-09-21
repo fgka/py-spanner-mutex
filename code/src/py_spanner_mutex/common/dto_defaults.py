@@ -211,7 +211,8 @@ class HasFromDict(HasPatchWith):
                         cls.__name__,
                         err,
                     )
-            result[field.name] = field_value
+            if field_value is not None:
+                result[field.name] = field_value
         return result
 
 

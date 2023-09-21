@@ -586,6 +586,6 @@ def test_upsert_table_row_ok():
     db = _create_db()
     table_id = _TEST_TABLE_ID
     # When
-    gcp_spanner.upsert_table_row(db=db, table_id=table_id, row=row)
+    gcp_spanner.conditional_upsert_table_row(db=db, table_id=table_id, row=row)
     # Then
     assert len(db.called_run_in_txn) == 1

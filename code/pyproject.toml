@@ -167,7 +167,19 @@ ignore = ["CVS"]
 ignore-patterns = ["^\\.#"]
 jobs = 0
 limit-inference-results = 100
-load-plugins = ["pylint.extensions.check_elif", "pylint.extensions.bad_builtin", "pylint.extensions.docparams", "pylint.extensions.for_any_all", "pylint.extensions.set_membership", "pylint.extensions.code_style", "pylint.extensions.overlapping_exceptions", "pylint.extensions.typing", "pylint.extensions.redefined_variable_type", "pylint.extensions.comparison_placement", "pylint.extensions.mccabe"]
+load-plugins = [
+    "pylint.extensions.check_elif",
+    "pylint.extensions.bad_builtin",
+    "pylint.extensions.docparams",
+    "pylint.extensions.for_any_all",
+    "pylint.extensions.set_membership",
+    "pylint.extensions.code_style",
+    "pylint.extensions.overlapping_exceptions",
+    "pylint.extensions.typing",
+    "pylint.extensions.redefined_variable_type",
+    "pylint.extensions.comparison_placement",
+    "pylint.extensions.mccabe",
+]
 persistent = true
 py-version = "3.11.0"
 suggestion-mode = true
@@ -260,7 +272,16 @@ disable = [
 enable = ["useless-suppression", "use-symbolic-message-instead", "c-extension-no-member"]
 
 [tool.pylint.method_args]
-timeout-methods = ["requests.api.delete", "requests.api.get", "requests.api.head", "requests.api.options", "requests.api.patch", "requests.api.post", "requests.api.put", "requests.api.request"]
+timeout-methods = [
+    "requests.api.delete",
+    "requests.api.get",
+    "requests.api.head",
+    "requests.api.options",
+    "requests.api.patch",
+    "requests.api.post",
+    "requests.api.put",
+    "requests.api.request"
+]
 
 [tool.pylint.miscellaneous]
 notes = ["FIXME", "XXX", "TODO"]
@@ -297,7 +318,12 @@ contextmanager-decorators = ["contextlib.contextmanager"]
 generated-members = "REQUEST,acl_users,aq_parent,argparse.Namespace"
 ignore-none = true
 ignore-on-opaque-inference = true
-ignored-checks-for-mixins = ["no-member", "not-async-context-manager", "not-context-manager", "attribute-defined-outside-init"]
+ignored-checks-for-mixins = [
+    "no-member",
+    "not-async-context-manager",
+    "not-context-manager",
+    "attribute-defined-outside-init"
+]
 ignored-classes = ["SQLObject", "optparse.Values", "thread._local", "_thread._local"]
 missing-member-hint = true
 missing-member-hint-distance = 1

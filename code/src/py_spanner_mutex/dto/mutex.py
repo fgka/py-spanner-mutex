@@ -16,6 +16,8 @@ MIN_MUTEX_WAIT_TIME_IN_SECONDS: int = 1  # 1 second
 DEFAULT_MUTEX_WAIT_TIME_IN_SECONDS: int = 10  # 10 seconds
 MIN_MUTEX_STALENESS_IN_SECONDS: int = MIN_MUTEX_TTL_IN_SECONDS + 1  # must be greater than TTL
 DEFAULT_MUTEX_STALENESS_IN_SECONDS: int = 2 * DEFAULT_MUTEX_TTL_IN_SECONDS
+MIN_MUTEX_MAX_RETRIES: int = 5
+DEFAULT_MUTEX_MAX_RETRIES: int = 50
 
 
 class MutexStatus(dto_defaults.EnumWithFromStrIgnoreCase):
@@ -51,7 +53,9 @@ class MutexState(dto_defaults.HasFromJsonString):
         Returns:
 
         """
-        return self.update_time_utc + timedelta(seconds=ttl_in_secs) > datetime.utcnow()
+        return self.update_time_utc.replace(tzinfo=pytz.UTC) + timedelta(
+            seconds=ttl_in_secs
+        ) > datetime.utcnow().replace(tzinfo=pytz.UTC)
 
     @staticmethod
     def from_spanner_row(row: Dict[str, Any]) -> "MutexState":
@@ -100,32 +104,87 @@ class MutexConfig(dto_defaults.HasFromJsonString):
     mutex_uuid: sys_uuid.UUID = attrs.field(
         converter=_str_uuid_converter, validator=attrs.validators.instance_of(sys_uuid.UUID)
     )
+    """
+    The key to the mutex, each mutex should have its own UUID.
+    It must be the same for all clients.
+    """
     instance_id: str = attrs.field(validator=attrs.validators.instance_of(str))
+    """
+    Spanner instance ID
+    """
     database_id: str = attrs.field(validator=attrs.validators.instance_of(str))
+    """
+    Spanner database ID, hosted by the instance
+    """
     table_id: str = attrs.field(validator=attrs.validators.instance_of(str))
+    """
+    Spanner table name that holds all mutexes, it belongs to the database given.
+    """
     project_id: Optional[str] = attrs.field(
         default=None, validator=attrs.validators.optional(attrs.validators.instance_of(str))
     )
+    """
+    Google cloud project, if not the default where the clients are running.
+    """
     mutex_display_name: Optional[str] = attrs.field(
         default=None, validator=attrs.validators.optional(attrs.validators.instance_of(str))
     )
+    """
+    There is no functional need, just to make displaying and debugging easier.
+    """
     mutex_ttl_in_secs: Optional[int] = attrs.field(
         default=DEFAULT_MUTEX_TTL_IN_SECONDS,
         validator=attrs.validators.and_(
-            attrs.validators.optional(attrs.validators.instance_of(int)), attrs.validators.gt(MIN_MUTEX_TTL_IN_SECONDS)
+            attrs.validators.optional(attrs.validators.instance_of(int)), attrs.validators.ge(MIN_MUTEX_TTL_IN_SECONDS)
         ),
     )
+    """
+    The TTL is allotted time given to the client that acquire the critical section to execute it.
+    If this time is exceeded, other clients will assume it fails and will try to acquire and execute
+    the critical section.
+    """
     mutex_staleness_in_secs: Optional[int] = attrs.field(
         default=DEFAULT_MUTEX_WAIT_TIME_IN_SECONDS,
         validator=attrs.validators.and_(
             attrs.validators.optional(attrs.validators.instance_of(int)),
-            attrs.validators.gt(MIN_MUTEX_WAIT_TIME_IN_SECONDS),
+            attrs.validators.ge(MIN_MUTEX_WAIT_TIME_IN_SECONDS),
         ),
     )
+    """
+    If a "DONE" status is found but older than the given staleness,
+    it will assume it is from a past execution and ignore it.
+    """
     mutex_wait_time_in_secs: Optional[int] = attrs.field(
         default=DEFAULT_MUTEX_STALENESS_IN_SECONDS,
         validator=attrs.validators.and_(
             attrs.validators.optional(attrs.validators.instance_of(int)),
-            attrs.validators.gt(MIN_MUTEX_STALENESS_IN_SECONDS),
+            attrs.validators.ge(MIN_MUTEX_STALENESS_IN_SECONDS),
         ),
     )
+    """
+    If the client cannot get the critical section, it will use the wait_time before retrying.
+    """
+    mutex_max_retries: Optional[int] = attrs.field(
+        default=DEFAULT_MUTEX_MAX_RETRIES,
+        validator=attrs.validators.and_(
+            attrs.validators.optional(attrs.validators.instance_of(int)),
+            attrs.validators.ge(MIN_MUTEX_MAX_RETRIES),
+        ),
+    )
+    """
+    After going max_retries trying the acquire the critical section, will fail and give up.
+    """
+
+    def __attrs_post_init__(self):
+        """
+        Staleness *MUST* be higher that all retries and TTL.
+        """
+        max_retries_time = self.mutex_max_retries * self.mutex_wait_time_in_secs
+        max_mutex_active_time = max(max_retries_time, self.mutex_ttl_in_secs)
+        if self.mutex_staleness_in_secs <= max_mutex_active_time:
+            raise ValueError(
+                f"Staleness value '{self.mutex_staleness_in_secs}' *MUST* be higher (preferably considerably so) than "
+                f"the maximum of TTL ({self.mutex_ttl_in_secs}) and retry max time ({max_retries_time} = "
+                f"retries ({self.mutex_max_retries}) * wait time {self.mutex_wait_time_in_secs})). "
+                f"All values: {self}"
+            )
