@@ -1,8 +1,9 @@
 # vim: ai:sw=4:ts=4:sta:et:fo=croql
 """
-Wrapper around Cloud Spanner Python API, which is a thin layer on top of `Cloud Spanner API`_.
+Wrapper around Cloud Spanner Python API, which is a thin layer on top of `Cloud Spanner API`_ (`RPC`_).
 
 .. _Cloud Spanner API: https://cloud.google.com/python/docs/reference/spanner/latest
+.. _Cloud Spanner RPC: https://cloud.google.com/spanner/docs/reference/rpc
 """
 import os
 from typing import Any, Callable, Dict, Generator, List, Optional, Set, Tuple

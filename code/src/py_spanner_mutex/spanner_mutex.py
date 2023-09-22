@@ -278,6 +278,16 @@ class SpannerMutex(abc.ABC):
         )
 
     def _set_mutex(self, state: mutex.MutexState) -> bool:
+        """
+        **IMPORTANT** This code is not strictly correct and there is a non-zero chance it will fail.
+        For all the details, please read the code/CORRECTNESS_DISCLAIMER.md
+        Args:
+            state:
+
+        Returns:
+
+        """
+
         def can_upsert(txn: transaction.Transaction, tbl: table.Table, row: Dict[str, Any]) -> bool:
             _LOGGER.debug("Checking if upsert should be performed, args: %s", locals())
             res = True

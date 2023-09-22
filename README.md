@@ -11,6 +11,11 @@ To avoid having to implement [Paxos](https://people.cs.rutgers.edu/~pxk/417/note
 
 > :hand: If you are not interested in theoretical *gibberish* you can skip directly to [Show Me!](./README.md#show-me)
 
+## [Correctness disclaimer](./code/CORRECTNESS_DISCLAIMER.md)
+
+This solution is suitable for most use-cases.
+However, there are edge cases that can make it fail and you should be aware.
+
 ## Can it work?
 
 Yes it can (_sorry_ for the pun) because of a couple of guarantees from Cloud Spanner:
