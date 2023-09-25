@@ -339,6 +339,7 @@ class TestHasFromDict:
 
 @attrs.define(**const.ATTRS_DEFAULTS)
 class _MyHasFromJsonStringA(dto_defaults.HasFromJsonString):
+    field_uuid_mandatory: uuid.UUID = attrs.field(default=uuid.uuid4())
     field_uuid: Optional[uuid.UUID] = attrs.field(default=None)
     field_str: Optional[str] = attrs.field(default=None)
     field_float: Optional[float] = attrs.field(default=None)

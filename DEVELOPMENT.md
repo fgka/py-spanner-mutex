@@ -167,39 +167,51 @@ poetry build
 <details>
 <summary>Click me</summary>
 
-Setup your [Poetry](https://www.jetbrains.com/help/pycharm/poetry.html) environment.
+## Setup your [Poetry](https://www.jetbrains.com/help/pycharm/poetry.html) environment.
+
+## Pytest defaults
 
 You need to add ``--no-cov`` to your `Run/Debug` settings.
 Below are the instructions on how to do it.
 Tested with `PyCharm 2023.1.2 (Professional Edition)` for macOS.
 
-### Menu `Run` click on `Edit Configurations...`:
+#### Menu `Run` click on `Edit Configurations...`:
 
 ![menu](./doc/pycharm/0_pycharm_run_menu.png)
 
-### Click `Edit configuration templates...`
+#### Click `Edit configuration templates...`
 
 ![template](./doc/pycharm/1_pycharm_edit_template.png)
 
-### Select `Python tests/Autodetect`
+#### Select `Python tests/Autodetect`
 
 Add `--no-cov` to `Additional Arguments` field:
 
 ![autodetect](./doc/pycharm/2_pycharm_autodetect_template.png)
 
-### Select `Python tests/pytest`
+#### Select `Python tests/pytest`
 
 Add `--no-cov` to `Additional Arguments` field:
 
 ![pytest](./doc/pycharm/3_pycharm_pytest_template.png)
 
-
-### Enable proper Poetry pytest debugging
+## Enable proper Poetry pytest debugging
 
 This is documented [Python-poetry bug 5138](https://github.com/python-poetry/poetry/issues/5138):
 
 Uncheck: ``Settings`` -> ``Build, Execution, Deployment`` -> ``Python Debugger`` -> ``Attach to subprocess automatically while debugging``
 
 ![debug](./doc/pycharm/4_pycharm_debug_subprocess.png)
+
+## Set pytest as default test runner and Google docstring style
+
+Based on the official documentation [here](https://www.jetbrains.com/help/pycharm/pytest.html).
+
+Go to: ``Settings`` -> ``Tools`` -> ``Python Integrated Tools``:
+* ``Testing`` -> ``Default test runner``: ``pytest``
+* ``Docstrings`` -> ``Docstring format``: ``Google``
+
+
+![pytest_default](./doc/pycharm/5_pycharm_pytest_default.png)
 
 </details>

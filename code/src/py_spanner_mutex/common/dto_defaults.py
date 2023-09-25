@@ -5,8 +5,9 @@
 """
 import enum
 import json
+import typing
 import uuid
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Optional, Union
 
 import attrs
 
@@ -128,12 +129,31 @@ class HasPatchWith(HasIsEmpty):
 class HasFromDict(HasPatchWith):
     """To add :py:meth:`from_dict` to children."""
 
-    def as_dict(self) -> Dict[str, Any]:
+    def as_dict(self, *, for_json: Optional[bool] = False) -> Dict[str, Any]:
         """Simple wrapper for:: attrs.asdict(self)
 
         Returns:
         """
-        return attrs.asdict(self)
+        result = {}
+        for field in list(attrs.fields(self.__class__)):
+            field_value = getattr(self, field.name)
+            if field_value is not None:  # things like lists and dicts are of type: typing.List/typing.Dict
+                try:
+                    if _is_of_type(field.type, HasFromDict):
+                        # recursion as_dict()
+                        field_value = field_value.as_dict(for_json=for_json)
+                    elif _is_of_type(field.type, uuid.UUID):
+                        field_value = str(field_value)
+                except Exception as err:  # pylint: disable=broad-except
+                    field_value = None
+                    _LOGGER.warning(
+                        "Could create field '%s' from dict for type '%s'. Ignoring. Error: %s",
+                        field.name,
+                        self.__class__.__name__,
+                        err,
+                    )
+            result[field.name] = field_value
+        return result
 
     def clone(self, **overwrite) -> Any:
         """Will create a new instance of the same type and apply overwrites, if
@@ -194,14 +214,12 @@ class HasFromDict(HasPatchWith):
         result = {}
         for field in list(attrs.fields(cls)):
             field_value = value.get(field.name)
-            if field_value is not None and isinstance(
-                field.type, type
-            ):  # things like lists and dicts are of type: typing.List/typing.Dict
+            if field_value is not None:  # things like lists and dicts are of type: typing.List/typing.Dict
                 try:
-                    if issubclass(field.type, HasFromDict):
+                    if _is_of_type(field.type, HasFromDict):
                         # recursion on from_dict()
                         field_value = field.type.from_dict(field_value)
-                    elif issubclass(field.type, uuid.UUID):
+                    elif _is_of_type(field.type, uuid.UUID) and isinstance(field_value, str):
                         field_value = uuid.UUID(field_value)
                 except Exception as err:  # pylint: disable=broad-except
                     field_value = None
@@ -214,6 +232,15 @@ class HasFromDict(HasPatchWith):
             if field_value is not None:
                 result[field.name] = field_value
         return result
+
+
+def _is_of_type(cls: Any, target: type) -> bool:
+    if isinstance(cls, type):
+        result = issubclass(cls, target)
+    else:
+        # it is declared like Optional[MyClass]
+        result = typing.get_origin(cls) is Union and target in typing.get_args(cls)
+    return result
 
 
 class HasFromJsonString(HasFromDict):
@@ -253,11 +280,7 @@ class HasFromJsonString(HasFromDict):
         """
         # first to dict
         try:
-            value_dict = self.as_dict()
-            # convert UUID to str
-            for field in list(attrs.fields(self.__class__)):
-                if isinstance(field.type, type) and issubclass(field.type, uuid.UUID):
-                    value_dict[field.name] = str(getattr(self, field.name))
+            value_dict = self.as_dict(for_json=True)
         except Exception as err:
             raise ValueError(
                 f"Could not convert '{self}' to a dictionary for type {self.__class__.__name__}. Error: {err}"
