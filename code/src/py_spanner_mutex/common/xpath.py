@@ -42,7 +42,7 @@ def get_parent_node_based_on_path(value: Any, path: str) -> Tuple[Any, str]:
         ``<node containing the last key in the path>, <last key in the path>``
     """
     # input validation
-    path = preprocess.string(path, "path", strip_it=True, is_empty_valid=False, is_none_valid=False)
+    path = preprocess.string(path, "path", strip_it=True, is_empty_valid=False, is_none_valid=False)  # type: ignore
     # logic
     return _get_parent_node_attribute_based_on_path_object(value, path)
 

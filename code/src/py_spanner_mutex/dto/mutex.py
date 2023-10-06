@@ -69,12 +69,12 @@ class MutexState(dto_defaults.HasFromJsonString):
         """
         update_time_utc = row.get("update_time_utc", datetime.utcnow()).astimezone(pytz.UTC)
         return MutexState(
-            uuid=_str_uuid_converter(row.get("uuid")),
-            display_name=row.get("display_name"),
+            uuid=_str_uuid_converter(row.get("uuid")),  # type: ignore
+            display_name=row.get("display_name"),  # type: ignore
             status=MutexStatus.from_str(row.get("status")),
             update_time_utc=update_time_utc,
             update_client_uuid=sys_uuid.UUID(f"{{{row.get('update_client_uuid')}}}"),
-            update_client_display_name=row.get("update_client_display_name"),
+            update_client_display_name=row.get("update_client_display_name"),  # type: ignore
         )
 
     def to_spanner_row(self, with_commit_ts: Optional[bool] = True) -> Dict[str, Any]:
@@ -132,10 +132,10 @@ class MutexConfig(dto_defaults.HasFromJsonString):
     """
     There is no functional need, just to make displaying and debugging easier.
     """
-    mutex_ttl_in_secs: Optional[int] = attrs.field(
+    mutex_ttl_in_secs: int = attrs.field(
         default=DEFAULT_MUTEX_TTL_IN_SECONDS,
-        validator=attrs.validators.and_(
-            attrs.validators.optional(attrs.validators.instance_of(int)), attrs.validators.ge(MIN_MUTEX_TTL_IN_SECONDS)
+        validator=attrs.validators.and_(  # type: ignore
+            attrs.validators.optional(attrs.validators.instance_of(int)), attrs.validators.ge(MIN_MUTEX_TTL_IN_SECONDS)  # type: ignore
         ),
     )
     """
@@ -143,10 +143,10 @@ class MutexConfig(dto_defaults.HasFromJsonString):
     If this time is exceeded, other clients will assume it fails and will try to acquire and execute
     the critical section.
     """
-    mutex_staleness_in_secs: Optional[int] = attrs.field(
+    mutex_staleness_in_secs: int = attrs.field(
         default=DEFAULT_MUTEX_STALENESS_IN_SECONDS,
-        validator=attrs.validators.and_(
-            attrs.validators.optional(attrs.validators.instance_of(int)),
+        validator=attrs.validators.and_(  # type: ignore
+            attrs.validators.optional(attrs.validators.instance_of(int)),  # type: ignore
             attrs.validators.ge(MIN_MUTEX_STALENESS_IN_SECONDS),
         ),
     )
@@ -154,20 +154,20 @@ class MutexConfig(dto_defaults.HasFromJsonString):
     If a "DONE" status is found but older than the given staleness,
     it will assume it is from a past execution and ignore it.
     """
-    mutex_wait_time_in_secs: Optional[int] = attrs.field(
+    mutex_wait_time_in_secs: int = attrs.field(
         default=DEFAULT_MUTEX_WAIT_TIME_IN_SECONDS,
-        validator=attrs.validators.and_(
-            attrs.validators.optional(attrs.validators.instance_of(int)),
+        validator=attrs.validators.and_(  # type: ignore
+            attrs.validators.optional(attrs.validators.instance_of(int)),  # type: ignore
             attrs.validators.ge(MIN_MUTEX_WAIT_TIME_IN_SECONDS),
         ),
     )
     """
     If the client cannot get the critical section, it will use the wait_time before retrying.
     """
-    mutex_max_retries: Optional[int] = attrs.field(
+    mutex_max_retries: int = attrs.field(
         default=DEFAULT_MUTEX_MAX_RETRIES,
-        validator=attrs.validators.and_(
-            attrs.validators.optional(attrs.validators.instance_of(int)),
+        validator=attrs.validators.and_(  # type: ignore
+            attrs.validators.optional(attrs.validators.instance_of(int)),  # type: ignore
             attrs.validators.ge(MIN_MUTEX_MAX_RETRIES),
         ),
     )

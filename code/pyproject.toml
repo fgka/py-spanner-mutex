@@ -344,4 +344,4 @@ redefining-builtins-modules = ["six.moves", "past.builtins", "future.builtins", 
 
 [tool.mypy]
 files = ["src"]
-strict_optional = false
+strict_optional = true

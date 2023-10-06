@@ -109,7 +109,7 @@ class HasPatchWith(HasIsEmpty):
         if self_field is None:
             # clear substitution
             result = value_field
-        elif self_field is not None and value_field is not None and issubclass(field.type, HasPatchWith):
+        elif self_field is not None and value_field is not None and issubclass(field.type, HasPatchWith):  # type: ignore
             # recursion on patch_with()
             try:
                 result = self_field.patch_with(value_field)

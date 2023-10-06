@@ -31,7 +31,7 @@ class SimpleLocalSpannerMutex(spanner_mutex.SpannerMutex):
         super(SimpleLocalSpannerMutex, self).__init__(
             config=config, client_uuid=client_uuid, client_display_name=client_display_name
         )
-        self._target_filename = preprocess.validate_type(
+        self._target_filename: pathlib.Path = preprocess.validate_type(  # type: ignore
             target_filename,
             "target_filename",
             pathlib.Path,

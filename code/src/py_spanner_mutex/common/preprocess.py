@@ -11,10 +11,10 @@ _DEFAULT_NAME_VALUE: str = "value"
 
 def validate_type(
     value: Any,
-    name: Optional[str] = _DEFAULT_NAME_VALUE,
-    cls: Optional[type] = _DEFAULT_TYPE_VALUE,
+    name: str = _DEFAULT_NAME_VALUE,
+    cls: type = _DEFAULT_TYPE_VALUE,
     *,
-    is_none_valid: Optional[bool] = False,
+    is_none_valid: bool = False,
     default_value: Optional[Any] = None,
 ) -> Optional[Any]:
     """
@@ -46,12 +46,12 @@ def validate_type(
 
 def string(
     value: Any,
-    name: Optional[str] = _DEFAULT_NAME_VALUE,
+    name: str = _DEFAULT_NAME_VALUE,
     *,
     regex: Optional[Union[str | re.Pattern]] = None,
-    strip_it: Optional[bool] = True,
-    is_empty_valid: Optional[bool] = False,
-    is_none_valid: Optional[bool] = False,
+    strip_it: bool = True,
+    is_empty_valid: bool = False,
+    is_none_valid: bool = False,
     default_value: Optional[Any] = None,
 ) -> Optional[str]:
     """
@@ -104,11 +104,11 @@ def string(
 
 def integer(
     value: Any,
-    name: Optional[str] = _DEFAULT_NAME_VALUE,
+    name: str = _DEFAULT_NAME_VALUE,
     *,
     lower_bound: Optional[int] = None,
     upper_bound: Optional[int] = None,
-    is_none_valid: Optional[bool] = False,
+    is_none_valid: bool = False,
     default_value: Optional[Any] = None,
 ) -> Optional[int]:
     """
@@ -145,13 +145,13 @@ def integer(
 
 def path(
     value: Union[str | pathlib.Path | Any],
-    name: Optional[str] = _DEFAULT_NAME_VALUE,
+    name: str = _DEFAULT_NAME_VALUE,
     *,
-    exists: Optional[bool] = False,
-    is_file: Optional[bool] = False,
-    is_dir: Optional[bool] = False,
-    can_write: Optional[bool] = False,
-    can_read: Optional[bool] = False,
+    exists: bool = False,
+    is_file: bool = False,
+    is_dir: bool = False,
+    can_write: bool = False,
+    can_read: bool = False,
 ) -> pathlib.Path:
     """
     Validates the value as a valid :py:cls:`pathlib.Path`.
@@ -191,7 +191,7 @@ def path(
 
 def _path_validate_type_and_return(
     value: Union[str | pathlib.Path | Any],
-    name: Optional[str] = _DEFAULT_NAME_VALUE,
+    name: str = _DEFAULT_NAME_VALUE,
 ) -> pathlib.Path:
     # validate type
     if isinstance(value, str):
@@ -233,7 +233,7 @@ def _path_validate_existing(
 
 def is_callable(
     value: Callable,
-    name: Optional[str] = _DEFAULT_NAME_VALUE,
+    name: str = _DEFAULT_NAME_VALUE,
 ) -> None:
     """
     Verifies if a particular ``value`` is callable.

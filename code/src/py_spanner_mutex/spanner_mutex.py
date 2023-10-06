@@ -49,11 +49,11 @@ class SpannerMutex(abc.ABC):
         creds: Optional[credentials.Credentials] = None,
     ):
         _LOGGER.debug("Creating '%s' with '%s'", self.__class__.__name__, locals())
-        self._config = preprocess.validate_type(config, "config", mutex.MutexConfig)
-        self._client_uuid = preprocess.validate_type(
+        self._config: mutex.MutexConfig = preprocess.validate_type(config, "config", mutex.MutexConfig)  # type: ignore
+        self._client_uuid: uuid.UUID = preprocess.validate_type(  # type: ignore
             client_uuid, "client_uuid", uuid.UUID, is_none_valid=True, default_value=uuid.uuid4()
         )
-        self._client_display_name = preprocess.string(
+        self._client_display_name: str = preprocess.string(  # type: ignore
             client_display_name, "client_display_name", is_none_valid=True, default_value=str(self._client_uuid)
         )
         self._creds = preprocess.validate_type(creds, "creds", credentials.Credentials, is_none_valid=True)
@@ -116,7 +116,11 @@ class SpannerMutex(abc.ABC):
         """
         Current mutex status
         """
-        return self._state().status
+        result = mutex.MutexStatus.UNKNOWN
+        state = self._state()
+        if state is not None:
+            result = state.status
+        return result
 
     def _state(self) -> Optional[mutex.MutexState]:
         result = None
