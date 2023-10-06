@@ -7,7 +7,7 @@ import attrs
 from py_spanner_mutex.common import const, dto_defaults, preprocess
 
 
-@attrs.define(**const.ATTRS_DEFAULTS)
+@attrs.define(**const.ATTRS_DEFAULTS)  # type: ignore
 class ZoneMap(dto_defaults.HasFromJsonString):
     """How are zones mapped from source to target."""
 
@@ -27,7 +27,7 @@ class ZoneMap(dto_defaults.HasFromJsonString):
         preprocess.string(value, name, regex=const.FQN_ZONE_REGEX)
 
 
-@attrs.define(**const.ATTRS_DEFAULTS)
+@attrs.define(**const.ATTRS_DEFAULTS)  # type: ignore
 class SubnetMap(dto_defaults.HasFromJsonString):
     """How are subnets mapped from source to target."""
 
@@ -63,7 +63,7 @@ class SubnetMap(dto_defaults.HasFromJsonString):
 
     @staticmethod
     def _subnet_components(value: str) -> Tuple[str, str, str]:
-        return const.FQN_SUBNET_REGEX.match(value).groups()
+        return const.FQN_SUBNET_REGEX.match(value).groups()  # type: ignore
 
     def target_components(self) -> Tuple[str, str, str]:
         """
@@ -75,7 +75,7 @@ class SubnetMap(dto_defaults.HasFromJsonString):
         return self._subnet_components(self.target)
 
 
-@attrs.define(**const.ATTRS_DEFAULTS)
+@attrs.define(**const.ATTRS_DEFAULTS)  # type: ignore
 class MigrationTarget(dto_defaults.HasFromJsonString):
     """
     Defines a migration target.

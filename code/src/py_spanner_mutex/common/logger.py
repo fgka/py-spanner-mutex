@@ -25,7 +25,7 @@ class OneLineExceptionFormatter(logging.Formatter):
 
     def formatException(self, ei: tuple) -> str:
         """Formats an exception"""
-        result = super().formatException(ei)
+        result = super().formatException(ei)  # type: ignore
         return repr(result)
 
     def format(self, record: logging.LogRecord) -> str:
@@ -115,17 +115,17 @@ def _create_logger(name: str, level: int) -> logging.Logger:
 
 
 def _create_stdout_stream_handler(level: int) -> logging.StreamHandler:
-    return _create_stream_handler(level, StdOutFilter(), sys.stdout)
+    return _create_stream_handler(level, StdOutFilter(), sys.stdout)  # type: ignore
 
 
 def _create_stream_handler(level: int, log_filter: logging.Filter, stream: io.TextIOWrapper) -> logging.StreamHandler:
     result = _setup_handler(logging.StreamHandler(stream), level)
     result.addFilter(log_filter)
-    return result
+    return result  # type: ignore
 
 
 def _create_stderr_stream_handler(level: int) -> logging.StreamHandler:
-    return _create_stream_handler(level, StdErrFilter(), sys.stderr)
+    return _create_stream_handler(level, StdErrFilter(), sys.stderr)  # type: ignore
 
 
 def _setup_handler(value: logging.Handler, level: int, format_str: Optional[str] = _LOGGER_FORMAT) -> logging.Handler:

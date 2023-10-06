@@ -105,7 +105,7 @@ def create_dict_based_on_path_value_lst(  # pylint: disable=invalid-name
     # input validation
     _validate_path_value_lst(path_value_lst, "path_value_lst")
     # logic
-    result = {}
+    result: Dict[str, Any] = {}
     for path, value in path_value_lst:
         result = _create_dict_based_on_path(result, path, value)
     return result

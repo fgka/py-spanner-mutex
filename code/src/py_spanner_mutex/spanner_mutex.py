@@ -11,7 +11,7 @@ from typing import Any, Callable, Dict, Optional
 
 import cachetools
 import pytz
-from google.auth import credentials
+from google.auth import credentials  # type: ignore
 from google.cloud.spanner_v1 import database, table, transaction
 
 from py_spanner_mutex.common import logger, preprocess
@@ -163,6 +163,8 @@ class SpannerMutex(abc.ABC):
         """
         Will start the critical section.
         """
+        # can start?
+        self.validate(raise_if_invalid=True)
         retries = 0
         start_time = time.time()
         has_executed = False
@@ -268,9 +270,14 @@ class SpannerMutex(abc.ABC):
         return self._set_mutex(state)
 
     def _create_state(self, status: mutex.MutexStatus) -> mutex.MutexState:
+        display_name = (
+            self._config.mutex_display_name
+            if self._config.mutex_display_name is not None
+            else str(self._config.mutex_uuid)
+        )
         return mutex.MutexState(
             uuid=self._config.mutex_uuid,
-            display_name=self._config.mutex_display_name,
+            display_name=display_name,
             status=status,
             update_time_utc=datetime.utcnow(),
             update_client_uuid=self._client_uuid,

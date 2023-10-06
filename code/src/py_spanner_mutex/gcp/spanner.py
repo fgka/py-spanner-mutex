@@ -9,8 +9,8 @@ import os
 from typing import Any, Callable, Dict, Generator, List, Optional, Set, Tuple
 
 from google import auth
-from google.auth import credentials
-from google.cloud import spanner
+from google.auth import credentials  # type: ignore
+from google.cloud import spanner  # type: ignore
 from google.cloud.spanner_v1 import database, instance, streamed, table, transaction
 
 from py_spanner_mutex.common import logger, preprocess

@@ -2,12 +2,12 @@
 # pylint: disable=missing-module-docstring,missing-class-docstring,protected-access
 # pylint: disable=attribute-defined-outside-init,invalid-name
 # type: ignore
-from typing import Any, Callable, Generator, List, Optional, Tuple
+from typing import Any, Callable, Dict, Generator, List, Optional, Tuple
 
 import pytest
 from google.auth import credentials
 from google.cloud import spanner
-from google.cloud.spanner_v1 import database
+from google.cloud.spanner_v1 import database, table, transaction
 
 from py_spanner_mutex.gcp import spanner as gcp_spanner
 
@@ -135,21 +135,22 @@ class _FieldStub:
         self.name = name
 
 
-class _TableStub:
+class _TableStub(table.Table):
     def __init__(
         self,
         *,
         table_id: str,
+        db: database.Database,
         col_names: Optional[List[str]] = None,
         exists: Optional[bool] = True,
         to_raise: Optional[bool] = False,
     ):
+        super(_TableStub, self).__init__(table_id=table_id, database=db)
         if to_raise:
             raise RuntimeError
-        self.table_id = table_id
         self._exists = exists
         col_names = col_names if col_names is not None else _TEST_TABLE_COLUMN_NAMES
-        self.schema = []
+        self._schema = []
         for col in col_names:
             self.schema.append(_FieldStub(col))
 
@@ -181,12 +182,24 @@ class _SnapshotCtxMngr:
         pass
 
 
-class _TransactionStub:
+class _SessionStub:
     def __init__(self):
+        self._transaction = None
+
+
+class _TransactionStub(transaction.Transaction):
+    def __init__(self, read_result: Optional[List[Any]] = None):
+        super(_TransactionStub, self).__init__(_SessionStub())
+        self._read_results = read_result if read_result else []
         self.called_upsert = []
+        self.called_read = []
 
     def insert_or_update(self, table, columns, values):
         self.called_upsert.append(locals())
+
+    def read(self, table: str, columns: List[str], keyset: spanner.KeySet) -> Any:
+        self.called_read.append(locals())
+        return iter(self._read_results)
 
 
 class _DatabaseStub(database.Database):
@@ -224,7 +237,11 @@ class _DatabaseStub(database.Database):
 
     def table(self, table_id: str) -> Any:
         return _TableStub(
-            table_id=table_id, exists=self._table_exists, to_raise=self._table_to_raise, col_names=self._table_columns
+            table_id=table_id,
+            db=self,
+            exists=self._table_exists,
+            to_raise=self._table_to_raise,
+            col_names=self._table_columns,
         )
 
     def snapshot(self) -> Any:
@@ -236,7 +253,7 @@ class _DatabaseStub(database.Database):
     def run_in_transaction(self, func: Callable, *args, **kw):
         txn = _TransactionStub()
         self.called_run_in_txn.append(locals())
-        func(txn, *args, **kw)
+        return func(txn, *args, **kw)
 
 
 class _InstanceStub:
@@ -580,12 +597,67 @@ def test_read_table_rows_ok_with_results():
             assert r.get(columns[ndx]) == exp_vals[ndx - 1]
 
 
-def test_upsert_table_row_ok():
+def test_conditional_upsert_table_row_ok_without_can_upsert():
     # Given
     row = {"id": _TEST_KEY, "col_str": "str_value", "col_int": 123}
     db = _create_db()
     table_id = _TEST_TABLE_ID
     # When
-    gcp_spanner.conditional_upsert_table_row(db=db, table_id=table_id, row=row)
+    assert gcp_spanner.conditional_upsert_table_row(db=db, table_id=table_id, row=row)
     # Then
     assert len(db.called_run_in_txn) == 1
+
+
+@pytest.mark.parametrize("can_upsert_result", [True, False])
+def test_conditional_upsert_table_row_ok_with_can_upsert(can_upsert_result: bool):
+    # Given
+    row_arg = {"id": _TEST_KEY, "col_str": "str_value", "col_int": 123}
+    db = _create_db()
+    table_id = _TEST_TABLE_ID
+    called = None
+
+    def can_upsert(txn: transaction.Transaction, tbl: table.Table, row: Dict[str, Any]) -> bool:
+        nonlocal called
+        called = locals()
+        assert not txn.called_upsert
+        assert tbl.table_id == table_id
+        assert row == row_arg
+        return can_upsert_result
+
+    # When
+    assert (
+        gcp_spanner.conditional_upsert_table_row(db=db, table_id=table_id, row=row_arg, can_upsert=can_upsert)
+        == can_upsert_result
+    )
+    # Then
+    assert called is not None
+    called_txn = called.get("txn")
+    assert called_txn is not None
+    if can_upsert_result:
+        assert len(called_txn.called_upsert) == 1
+    else:
+        assert len(called_txn.called_upsert) == 0
+
+
+def test_read_in_transaction_ok():
+    columns = ["id", "col_str", "col_int"]
+    values = [
+        [f"{_TEST_KEY}_A", "value_a", 100],
+        [f"{_TEST_KEY}_B", "value_b", 200],
+        [f"{_TEST_KEY}_C", "value_c", 300],
+    ]
+    txn = _TransactionStub(read_result=values)
+    tbl = _TableStub(table_id=_TEST_TABLE_ID, db=_create_db(), col_names=columns)
+    keys = set([(el[0],) for el in values])
+    # When
+    result = []
+    for row in gcp_spanner.read_in_transaction(txn=txn, tbl=tbl, keys=keys):
+        result.append(row)
+    # Then
+    assert len(result) == len(values)
+    # Then: txn
+    assert len(txn.called_read) == 1
+    txn_calle_read = txn.called_read[0]
+    assert txn_calle_read.get("columns") == columns
+    assert txn_calle_read.get("table") == _TEST_TABLE_ID
+    assert txn_calle_read.get("keyset").keys == list(keys)

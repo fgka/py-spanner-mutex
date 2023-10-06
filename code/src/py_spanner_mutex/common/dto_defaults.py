@@ -26,7 +26,7 @@ class HasIsEmpty:  # pylint: disable=too-few-public-methods
         Returns:
         """
         # pylint: disable=use-a-generator
-        return all([val is None for val in attrs.asdict(self).values()])
+        return all([val is None for val in attrs.asdict(self).values()])  # type: ignore
 
 
 class HasPatchWith(HasIsEmpty):
@@ -88,7 +88,7 @@ class HasPatchWith(HasIsEmpty):
 
     def _create_merge_kwargs(self, value: Any) -> Dict[str, Any]:
         result = {}
-        for field in list(attrs.fields(self.__class__)):
+        for field in list(attrs.fields(self.__class__)):  # type: ignore
             try:
                 result_field = self._create_field_value(field, value)
                 result[field.name] = result_field
@@ -135,7 +135,7 @@ class HasFromDict(HasPatchWith):
         Returns:
         """
         result = {}
-        for field in list(attrs.fields(self.__class__)):
+        for field in list(attrs.fields(self.__class__)):  # type: ignore
             field_value = getattr(self, field.name)
             if field_value is not None:  # things like lists and dicts are of type: typing.List/typing.Dict
                 try:
@@ -212,7 +212,7 @@ class HasFromDict(HasPatchWith):
         Returns:
         """
         result = {}
-        for field in list(attrs.fields(cls)):
+        for field in list(attrs.fields(cls)):  # type: ignore
             field_value = value.get(field.name)
             if field_value is not None:  # things like lists and dicts are of type: typing.List/typing.Dict
                 try:

@@ -6,7 +6,7 @@ from typing import Any, Dict, Optional, Union
 
 import attrs
 import pytz
-from google.cloud import spanner
+from google.cloud import spanner  # type: ignore
 
 from py_spanner_mutex.common import const, dto_defaults
 
@@ -34,7 +34,7 @@ class MutexStatus(dto_defaults.EnumWithFromStrIgnoreCase):
         return MutexStatus.UNKNOWN
 
 
-@attrs.define(**const.ATTRS_DEFAULTS)
+@attrs.define(**const.ATTRS_DEFAULTS)  # type: ignore
 class MutexState(dto_defaults.HasFromJsonString):
     """This must be in sync with the table schema."""
 
@@ -97,7 +97,7 @@ def _str_uuid_converter(value: Union[sys_uuid.UUID, str]) -> sys_uuid.UUID:
     return result
 
 
-@attrs.define(**const.ATTRS_DEFAULTS)
+@attrs.define(**const.ATTRS_DEFAULTS)  # type: ignore
 class MutexConfig(dto_defaults.HasFromJsonString):
     """Configuration DTO."""
 
@@ -144,10 +144,10 @@ class MutexConfig(dto_defaults.HasFromJsonString):
     the critical section.
     """
     mutex_staleness_in_secs: Optional[int] = attrs.field(
-        default=DEFAULT_MUTEX_WAIT_TIME_IN_SECONDS,
+        default=DEFAULT_MUTEX_STALENESS_IN_SECONDS,
         validator=attrs.validators.and_(
             attrs.validators.optional(attrs.validators.instance_of(int)),
-            attrs.validators.ge(MIN_MUTEX_WAIT_TIME_IN_SECONDS),
+            attrs.validators.ge(MIN_MUTEX_STALENESS_IN_SECONDS),
         ),
     )
     """
@@ -155,10 +155,10 @@ class MutexConfig(dto_defaults.HasFromJsonString):
     it will assume it is from a past execution and ignore it.
     """
     mutex_wait_time_in_secs: Optional[int] = attrs.field(
-        default=DEFAULT_MUTEX_STALENESS_IN_SECONDS,
+        default=DEFAULT_MUTEX_WAIT_TIME_IN_SECONDS,
         validator=attrs.validators.and_(
             attrs.validators.optional(attrs.validators.instance_of(int)),
-            attrs.validators.ge(MIN_MUTEX_STALENESS_IN_SECONDS),
+            attrs.validators.ge(MIN_MUTEX_WAIT_TIME_IN_SECONDS),
         ),
     )
     """
