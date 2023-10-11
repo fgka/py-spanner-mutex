@@ -5,10 +5,9 @@ from datetime import datetime, timedelta
 from typing import Any, Dict, Optional, Union
 
 import attrs
-import pytz
 from google.cloud import spanner  # type: ignore
 
-from py_spanner_mutex.common import const, dto_defaults
+from py_spanner_mutex.common import const, datetime_helper, dto_defaults
 
 MIN_MUTEX_TTL_IN_SECONDS: int = 10  # 10 second
 DEFAULT_MUTEX_TTL_IN_SECONDS: int = 5 * 60  # 5 minutes
@@ -16,7 +15,7 @@ MIN_MUTEX_WAIT_TIME_IN_SECONDS: int = 1  # 1 second
 DEFAULT_MUTEX_WAIT_TIME_IN_SECONDS: int = 10  # 10 seconds
 MIN_MUTEX_STALENESS_IN_SECONDS: int = MIN_MUTEX_TTL_IN_SECONDS + 1  # must be greater than TTL
 DEFAULT_MUTEX_STALENESS_IN_SECONDS: int = 2 * DEFAULT_MUTEX_TTL_IN_SECONDS
-MIN_MUTEX_MAX_RETRIES: int = 5
+MIN_MUTEX_MAX_RETRIES: int = 2
 DEFAULT_MUTEX_MAX_RETRIES: int = 50
 
 
@@ -34,15 +33,31 @@ class MutexStatus(dto_defaults.EnumWithFromStrIgnoreCase):
         return MutexStatus.UNKNOWN
 
 
+def _str_uuid_converter(value: Union[sys_uuid.UUID, str]) -> sys_uuid.UUID:
+    if isinstance(value, sys_uuid.UUID):
+        result = value
+    elif isinstance(value, str):
+        result = sys_uuid.UUID(f"{{{value}}}")
+    else:
+        raise ValueError(f"Value '{value}'({type(value)}) is not supported")
+    return result
+
+
 @attrs.define(**const.ATTRS_DEFAULTS)  # type: ignore
 class MutexState(dto_defaults.HasFromJsonString):
     """This must be in sync with the table schema."""
 
-    uuid: sys_uuid.UUID = attrs.field(validator=attrs.validators.instance_of(sys_uuid.UUID))
+    uuid: sys_uuid.UUID = attrs.field(
+        converter=_str_uuid_converter, validator=attrs.validators.instance_of(sys_uuid.UUID)
+    )
     display_name: str = attrs.field(validator=attrs.validators.instance_of(str))
     status: MutexStatus = attrs.field(validator=attrs.validators.instance_of(MutexStatus))
-    update_time_utc: datetime = attrs.field(validator=attrs.validators.instance_of(datetime))
-    update_client_uuid: sys_uuid.UUID = attrs.field(validator=attrs.validators.instance_of(sys_uuid.UUID))
+    update_time_utc: datetime = attrs.field(
+        converter=datetime_helper.datetime_with_utc_tzinfo, validator=attrs.validators.instance_of(datetime)
+    )
+    update_client_uuid: sys_uuid.UUID = attrs.field(
+        converter=_str_uuid_converter, validator=attrs.validators.instance_of(sys_uuid.UUID)
+    )
     update_client_display_name: str = attrs.field(validator=attrs.validators.instance_of(str))
 
     def is_state_stale(self, ttl_in_secs: int) -> bool:
@@ -53,9 +68,10 @@ class MutexState(dto_defaults.HasFromJsonString):
         Returns:
 
         """
-        return self.update_time_utc.replace(tzinfo=pytz.UTC) + timedelta(
-            seconds=ttl_in_secs
-        ) > datetime.utcnow().replace(tzinfo=pytz.UTC)
+        update_time_plus_ttl_utc = self.update_time_utc + timedelta(seconds=ttl_in_secs)
+        now_utc = datetime_helper.datetime_utcnow_with_tzinfo()
+        delta_utc = now_utc - update_time_plus_ttl_utc
+        return delta_utc.total_seconds() > 0
 
     @staticmethod
     def from_spanner_row(row: Dict[str, Any]) -> "MutexState":
@@ -67,7 +83,7 @@ class MutexState(dto_defaults.HasFromJsonString):
         Returns:
 
         """
-        update_time_utc = row.get("update_time_utc", datetime.utcnow()).astimezone(pytz.UTC)
+        update_time_utc = row.get("update_time_utc", datetime_helper.datetime_utcnow_with_tzinfo())
         return MutexState(
             uuid=_str_uuid_converter(row.get("uuid")),  # type: ignore
             display_name=row.get("display_name"),  # type: ignore
@@ -77,7 +93,7 @@ class MutexState(dto_defaults.HasFromJsonString):
             update_client_display_name=row.get("update_client_display_name"),  # type: ignore
         )
 
-    def to_spanner_row(self, with_commit_ts: Optional[bool] = True) -> Dict[str, Any]:
+    def to_spanner_row(self, *, with_commit_ts: bool = True) -> Dict[str, Any]:
         result = self.as_dict()
         result["uuid"] = str(self.uuid)
         result["status"] = self.status.value
@@ -85,16 +101,6 @@ class MutexState(dto_defaults.HasFromJsonString):
         if with_commit_ts:
             result["update_time_utc"] = spanner.COMMIT_TIMESTAMP
         return result
-
-
-def _str_uuid_converter(value: Union[sys_uuid.UUID, str]) -> sys_uuid.UUID:
-    if isinstance(value, sys_uuid.UUID):
-        result = value
-    elif isinstance(value, str):
-        result = sys_uuid.UUID(f"{{{value}}}")
-    else:
-        raise ValueError(f"Value '{value}'({type(value)}) is not supported")
-    return result
 
 
 @attrs.define(**const.ATTRS_DEFAULTS)  # type: ignore

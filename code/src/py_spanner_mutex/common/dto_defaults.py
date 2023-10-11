@@ -7,7 +7,7 @@ import enum
 import json
 import typing
 import uuid
-from typing import Any, Dict, Optional, Union
+from typing import Any, Dict, Optional, Self, Type, Union
 
 import attrs
 
@@ -102,7 +102,7 @@ class HasPatchWith(HasIsEmpty):
                 )
         return result
 
-    def _create_field_value(self, field: attrs.Attribute, value: Any) -> Any:
+    def _create_field_value(self, field: attrs.Attribute, value: Any) -> Type[Self]:
         self_field = getattr(self, field.name)
         value_field = getattr(value, field.name)
         result = self_field
@@ -155,7 +155,7 @@ class HasFromDict(HasPatchWith):
             result[field.name] = field_value
         return result
 
-    def clone(self, **overwrite) -> Any:
+    def clone(self, **overwrite) -> Type[Self]:
         """Will create a new instance of the same type and apply overwrites, if
         given.
 
@@ -173,7 +173,7 @@ class HasFromDict(HasPatchWith):
 
     @classmethod
     def from_dict(cls, value: Dict[str, Any]) -> Any:
-        """Converts a simple :py:class:`dict` into a instance of the current
+        """Converts a simple :py:class:`dict` into an instance of the current
         class.
 
         Args:
@@ -193,7 +193,7 @@ class HasFromDict(HasPatchWith):
                     err,
                 )
         try:
-            result = cls(**kwargs)
+            result: HasFromDict = cls(**kwargs)
         except Exception as err:
             raise ValueError(f"Could not instantiate '{cls.__name__}' from kwargs '{kwargs}'. Error: {err}") from err
         return result
@@ -271,7 +271,9 @@ class HasFromJsonString(HasFromDict):
                 error_context,
                 err,
             )
-        return cls.from_dict(value)
+        # to help mypy
+        result: HasFromJsonString = cls.from_dict(value)
+        return result
 
     def as_json(self) -> str:
         """Converts the current object into a JSON string.
@@ -308,7 +310,7 @@ class EnumWithFromStrIgnoreCase(enum.Enum):
 
         Returns:
         """
-        result = None
+        result: Union[EnumWithFromStrIgnoreCase | None] = None
         if value is not None:
             for val in cls:
                 if val.value.lower() == value.lower().strip():
